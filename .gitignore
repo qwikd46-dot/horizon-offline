@@ -39,3 +39,7 @@ launcher/dist/
 launcher/out/
 
 tools/fxc_shim.exe
+tools/horizon-mixins/
+native-mods/*.hnmod
+target/
+horizon-offline-modded/

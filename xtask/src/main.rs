@@ -19,9 +19,10 @@
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+mod native_mods;
 use std::process::{Command, ExitCode};
 
-const USAGE: &str = "usage: cargo run -p xtask -- package BINARY OUTDIR | package-server ENGINE OUTDIR | tokens | icons";
+const USAGE: &str = "usage: cargo run -p xtask -- build-native | package BINARY OUTDIR | package-server ENGINE OUTDIR | tokens | icons";
 
 /// What the release folder takes from the repository at HEAD, as `git archive` writes it.
 const ARCHIVED: [&str; 5] = [
@@ -44,6 +45,7 @@ const SERVER_TOOLS: [&str; 2] = ["horizon-prepare", "horizon-server"];
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.as_slice() {
+        [task] if task == "build-native" => native_mods::run(),
         [task, binary, out] if task == "package" => package(Path::new(binary), Path::new(out)),
         [task, engine, out] if task == "package-server" => {
             package_server(Path::new(engine), Path::new(out))
