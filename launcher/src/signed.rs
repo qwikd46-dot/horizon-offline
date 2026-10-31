@@ -10,7 +10,10 @@ use horizon_release_sign::{PublicKey, SIGNATURE, SUMS};
 /// Where a release's attached file downloads from (GitHub's fixed address for it). The game's
 /// builds live in upstream's repository; the launcher's own releases in this fork's.
 pub fn asset_url(tag: &str, name: &str) -> String {
-    format!("https://github.com/{}/releases/download/{tag}/{name}", repo_of(tag))
+    format!(
+        "https://github.com/{}/releases/download/{tag}/{name}",
+        repo_of(tag)
+    )
 }
 
 /// The repository a release's files come from: the launcher's own releases from this fork's
@@ -88,13 +91,19 @@ mod tests {
     fn the_forks_releases_come_from_the_fork_and_the_games_from_upstream() {
         assert_eq!(repo_of("v2099.01.01"), crate::backend::GAME_REPO);
         assert_eq!(repo_of("nightly"), crate::backend::GAME_REPO);
-        assert_eq!(repo_of("nightly-2026-10-28-0c02067"), crate::backend::GAME_REPO);
+        assert_eq!(
+            repo_of("nightly-2026-10-28-0c02067"),
+            crate::backend::GAME_REPO
+        );
         assert_eq!(repo_of("launcher@0.2.0-offline.2"), crate::backend::REPO);
         assert_eq!(repo_of("launcher-v0.2.0"), crate::backend::REPO);
-        assert_eq!(asset_url("v2099.01.01", "horizon.zip"), format!(
-            "https://github.com/{}/releases/download/v2099.01.01/horizon.zip",
-            crate::backend::GAME_REPO
-        ));
+        assert_eq!(
+            asset_url("v2099.01.01", "horizon.zip"),
+            format!(
+                "https://github.com/{}/releases/download/v2099.01.01/horizon.zip",
+                crate::backend::GAME_REPO
+            )
+        );
     }
 
     #[test]

@@ -13022,7 +13022,8 @@ impl Game<'_> {
         }
         Ok(())
     }
-    /// LOD Distance and Far Detail Reduced as the player chose them.
+    /// LOD Distance as the player chose it and Far Detail Reduced as the
+    /// renderer draws it (the optimizer's override applied).
     fn far_terrain_choice(&self) -> (u32, bool) {
         let g = &self.settings.horizon;
         let reduced = self.native_far_detail() == horizon_client::graphics::FarDetail::Reduced;

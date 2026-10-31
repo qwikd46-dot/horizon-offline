@@ -398,7 +398,7 @@ impl H {
                 0 => labelled("LOD Distance", "Off"),
                 n => labelled("LOD Distance", format!("{n} chunks")),
             },
-            H::FarDetail => labelled("Far Detail", g.far_detail.label()),
+            H::FarDetail => labelled("Far Detail", s.effective_far_detail().label()),
             H::CaveCulling => labelled("Cave Culling", on_off(g.cave_culling)),
             H::EntityCulling => labelled("Entity Culling", on_off(g.entity_culling)),
             H::ChunkUpdates => match g.chunk_updates {

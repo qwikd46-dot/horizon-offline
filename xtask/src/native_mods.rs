@@ -7,13 +7,17 @@
 //! applies them to the game source and compiles a native Horizon build that
 //! includes them.
 
+use std::collections::BTreeMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// The biggest `.hnmod` this reads and the most its files may expand to, as the
+/// launcher's own bundle reader (`horizon_mods::index::native::Bundle::read`).
+const MAX_FILE: u64 = 64 * 1024 * 1024;
+
 pub fn run() -> Result<(), String> {
-    // horizon-mixins doesn't allow symlinks (CLAUDE.md is a symlink to AGENTS.md)
-    let _ = std::fs::remove_file("CLAUDE.md");
     let native_mods_dir = PathBuf::from("native-mods");
     if !native_mods_dir.is_dir() {
         fs::create_dir_all(&native_mods_dir).map_err(|e| e.to_string())?;
@@ -42,7 +46,6 @@ pub fn run() -> Result<(), String> {
     }
 
     // Create output workspace for applied mods
-    let _workspace = Path::new(".");
     let staging_dir = PathBuf::from("target/native-mod-stage");
     let _ = fs::remove_dir_all(&staging_dir);
     fs::create_dir_all(&staging_dir).map_err(|e| e.to_string())?;
@@ -50,6 +53,12 @@ pub fn run() -> Result<(), String> {
     // Build horizon-mixins if available, or check tools/
     let horizon_mixins = PathBuf::from("tools/horizon-mixins/target/debug/horizon-mixins");
     if !horizon_mixins.exists() {
+        if !Path::new("tools/horizon-mixins").is_dir() {
+            return Err(
+                "tools/horizon-mixins is missing: clone https://github.com/horizon-rust/horizon-mixins there first."
+                    .into(),
+            );
+        }
         println!("Building horizon-mixins (first time)...");
         let status = Command::new("cargo")
             .args(["build", "--locked", "-p", "horizon-mixins-cli"])
@@ -61,71 +70,55 @@ pub fn run() -> Result<(), String> {
         }
     }
 
-    // Unpack each .hnmod and merge into a staging directory
+    // Unpack each .hnmod into the staging directory, validating every path so a
+    // crafted bundle cannot escape it (no `..`, absolute paths, drive letters,
+    // backslashes or symlinks), as the launcher's bundle reader does.
+    let mut bundle_dirs: Vec<PathBuf> = Vec::new();
     for hnmod in &hnmods {
         println!("Extracting {}...", hnmod.display());
-        let extract_dir = staging_dir.join(hnmod.file_stem().unwrap_or_default());
+        let stem = hnmod.file_stem().unwrap_or_default().to_str().unwrap_or("");
+        let extract_dir = staging_dir.join(stem);
         fs::create_dir_all(&extract_dir).map_err(|e| e.to_string())?;
-
-        // Unzip
-        let status = Command::new("unzip")
-            .arg("-o")
-            .arg(hnmod)
-            .arg("-d")
-            .arg(&extract_dir)
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err(format!("Failed to extract {}", hnmod.display()));
+        let files = read_bundle(hnmod)?;
+        for (name, bytes) in &files {
+            let to = extract_dir.join(name);
+            fs::create_dir_all(to.parent().unwrap_or(&extract_dir)).map_err(|e| e.to_string())?;
+            fs::write(&to, bytes).map_err(|e| format!("{}: {e}", to.display()))?;
         }
-    }
-
-    // Collect all bundle directories (each .hnmod extracts to mixins/<id>/ under its own dir)
-    let mut mods_dirs: Vec<PathBuf> = Vec::new();
-    for hnmod in &hnmods {
-        let name = hnmod
-            .file_stem()
-            .unwrap_or_default()
-            .to_str()
-            .unwrap_or("");
-        let bundles_dir = staging_dir.join(name).join("mixins");
-        if !bundles_dir.exists() {
+        let mixins = extract_dir.join("mixins");
+        if !mixins.is_dir() {
             return Err(format!("No mixins/ folder found in {}", hnmod.display()));
         }
-        // Find the bundle dir (mixins/<id>/)
-        for entry in fs::read_dir(&bundles_dir).map_err(|e| e.to_string())?.flatten() {
+        // Each bundle directory is mixins/<id>/, holding horizon-mixin.toml.
+        for entry in fs::read_dir(&mixins).map_err(|e| e.to_string())?.flatten() {
             if entry.path().join("horizon-mixin.toml").is_file() {
-                mods_dirs.push(entry.path());
+                bundle_dirs.push(entry.path());
             }
         }
     }
 
-    if mods_dirs.is_empty() {
+    if bundle_dirs.is_empty() {
         return Err("No mod bundles found in any .hnmod files".into());
     }
 
-    // Apply each mod bundle
-    // Collect them into one mods dir, then apply all at once
+    // Collect every bundle into one mods dir, then apply all at once.
     let merged_mods = staging_dir.join("merged_mods");
     fs::create_dir_all(&merged_mods).map_err(|e| e.to_string())?;
-    for d in &mods_dirs {
+    for d in &bundle_dirs {
         let name = d.file_name().unwrap_or_default();
         let target = merged_mods.join(name);
         fs::create_dir_all(&target).map_err(|e| e.to_string())?;
-        for entry in fs::read_dir(d).map_err(|e| e.to_string())?.flatten() {
-            fs::copy(entry.path(), target.join(entry.file_name()))
-                .map_err(|e| e.to_string())?;
-        }
+        copy_tree(d, &target)?;
     }
 
-    // Remove symlinks (horizon-mixins doesn't support them)
-    let _ = walk_remove_symlinks(&merged_mods);
+    // Apply with horizon-mixins. The output directory is cleared before use, so
+    // only accept one that names its own directory and is not a shallow path.
+    let out_dir = build_output_dir()?;
+    if out_dir.exists() {
+        fs::remove_dir_all(&out_dir).map_err(|e| e.to_string())?;
+    }
 
-    // Apply with horizon-mixins
-    let out_dir = std::env::var("HORIZON_BUILD_OUTPUT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/tmp").join("horizon-build-output"));
-    let _ = fs::remove_dir_all(&out_dir);
-
-    println!("Applying {} mod bundle(s)...", mods_dirs.len());
+    println!("Applying {} mod bundle(s)...", bundle_dirs.len());
     let status = Command::new(&horizon_mixins)
         .arg("apply")
         .arg("--workspace")
@@ -146,6 +139,7 @@ pub fn run() -> Result<(), String> {
     let status = Command::new("cargo")
         .arg("build")
         .arg("--release")
+        .arg("--locked")
         .args(["-p", "horizon-client", "--bin", "horizon-client"])
         .current_dir(&out_dir)
         .status()
@@ -162,15 +156,95 @@ pub fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn walk_remove_symlinks(path: &Path) {
-    if let Ok(entries) = fs::read_dir(path) {
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if p.is_symlink() {
-                let _ = fs::remove_file(&p);
-            } else if p.is_dir() {
-                walk_remove_symlinks(&p);
-            }
+/// The directory the build is written to and then compiled in. `HORIZON_BUILD_OUTPUT`
+/// overrides it, but it must name its own directory (not `.`, `/`, `/tmp` or a
+/// home directory): the builder clears it, and a wrong value would wipe it.
+fn build_output_dir() -> Result<PathBuf, String> {
+    let dir = match std::env::var("HORIZON_BUILD_OUTPUT") {
+        Ok(v) => PathBuf::from(v),
+        Err(_) => std::env::temp_dir().join("horizon-build-output"),
+    };
+    let shallow = dir.file_name().map(|n| n.is_empty()).unwrap_or(true)
+        || dir
+            .parent()
+            .map(|p| p.as_os_str().is_empty())
+            .unwrap_or(true)
+        || dir == std::env::temp_dir();
+    if shallow {
+        return Err(format!(
+            "HORIZON_BUILD_OUTPUT must be a directory of its own, not {}: the build clears it.",
+            dir.display()
+        ));
+    }
+    Ok(dir)
+}
+
+/// Read a `.hnmod` zip into validated relative paths. The rules are the
+/// launcher's (`horizon_mods::index::native::Bundle::read`): no symlinks or
+/// other special entries, no `..`, absolute paths, backslashes, drive letters
+/// or empty segments, and a bounded total size. Nothing is executed.
+fn read_bundle(path: &Path) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
+    if zip.len() > 512 {
+        return Err(format!("{}: too many entries", path.display()));
+    }
+    let mut files = BTreeMap::new();
+    let mut total = 0u64;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().to_owned();
+        if entry.is_dir() {
+            continue;
+        }
+        if entry
+            .unix_mode()
+            .is_some_and(|m| m & 0o170000 != 0 && m & 0o170000 != 0o100000)
+            || name.contains('\\')
+            || name
+                .split('/')
+                .any(|p| p.is_empty() || p == "." || p == "..")
+            || name.starts_with('/')
+            || name.contains(':')
+        {
+            return Err(format!("invalid native bundle path: {name}"));
+        }
+        let mut bytes = Vec::new();
+        (&mut entry)
+            .take(MAX_FILE + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| e.to_string())?;
+        total += bytes.len() as u64;
+        if total > MAX_FILE {
+            return Err(format!("{}: expands beyond 64 MiB", path.display()));
+        }
+        if files.insert(name, bytes).is_some() {
+            return Err(format!("{}: duplicate path", path.display()));
         }
     }
+    if files.is_empty() {
+        return Err(format!("{}: empty bundle", path.display()));
+    }
+    Ok(files)
+}
+
+/// Copy a bundle's tree, following no symlinks: a symlink is skipped rather
+/// than copied (horizon-mixins refuses one anyway), so a crafted bundle cannot
+/// pull a local file into the source that gets built.
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(from).map_err(|e| e.to_string())?.flatten() {
+        let path = entry.path();
+        let target = to.join(entry.file_name());
+        let kind = entry.file_type().map_err(|e| e.to_string())?;
+        if kind.is_symlink() {
+            continue;
+        }
+        if kind.is_dir() {
+            fs::create_dir_all(&target).map_err(|e| e.to_string())?;
+            copy_tree(&path, &target)?;
+        } else {
+            fs::copy(&path, &target).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
