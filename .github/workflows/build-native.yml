@@ -27,12 +27,19 @@ jobs:
           git clone https://github.com/horizon-rust/horizon-mixins tools/horizon-mixins
           cd tools/horizon-mixins && cargo build --locked -p horizon-mixins-cli
 
-      - name: Run build-native (xtask)
-        run: cargo run -p xtask -- build-native
+      - name: Build modded (direct)
+        run: |
+          find . -type l -delete
+          rm -rf /tmp/scratchpad/horizon-output
+          mkdir -p /tmp/scratchpad
+          # Apply mixins to the source (output outside workspace)
+          ./tools/horizon-mixins/target/debug/horizon-mixins apply --workspace . --mods ./native-mods/horizon_optimizer --out /tmp/scratchpad/horizon-output
+          cd /tmp/scratchpad/horizon-output
+          cargo build --release -p horizon-client --bin horizon-client
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: horizon-client
-          path: /home/runner/horizon-build-output/target/release/horizon-client
+          path: /tmp/scratchpad/horizon-output/target/release/horizon-client
           if-no-files-found: error
