@@ -30,11 +30,20 @@ jobs:
       - name: Build modded (direct)
         run: |
           find . -type l -delete
-          rm -rf /tmp/scratchpad/horizon-output
+          rm -rf /tmp/scratchpad/horizon-mod-bundle /tmp/scratchpad/horizon-output
           mkdir -p /tmp/scratchpad
+
+          # Pin the .hnmod to THIS source's revision (so horizon-mixins accepts it)
+          CURRENT_SHA=$(git rev-parse HEAD)
+          echo "Current source SHA: $CURRENT_SHA"
           mkdir -p /tmp/scratchpad/horizon-mod-bundle
           unzip -o ./native-mods/horizon_optimizer-0.1.0.hnmod -d /tmp/scratchpad/horizon-mod-bundle
+          sed -i "s/horizon_revision = \"[^\"]*\"/horizon_revision = \"$CURRENT_SHA\"/" /tmp/scratchpad/horizon-mod-bundle/mixins/horizon_optimizer/horizon-mixin.toml
+
+          # Apply mixins
           ./tools/horizon-mixins/target/debug/horizon-mixins apply --workspace . --mods /tmp/scratchpad/horizon-mod-bundle/mixins --out /tmp/scratchpad/horizon-output
+
+          # Build the modded game
           cd /tmp/scratchpad/horizon-output
           cargo build --release -p horizon-client --bin horizon-client
 
