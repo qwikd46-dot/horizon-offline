@@ -13,8 +13,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up workspace (strip symlinks)
+        run: find . -type l -delete
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -27,19 +31,25 @@ jobs:
           git clone https://github.com/horizon-rust/horizon-mixins tools/horizon-mixins
           cd tools/horizon-mixins && cargo build --locked -p horizon-mixins-cli
 
-      - name: Build modded (direct)
+      - name: Prepare mod bundle
         run: |
-          set -e
-          find . -type l -delete
-          rm -rf /tmp/scratchpad/horizon-output
-          mkdir -p /tmp/scratchpad
+          rm -rf /tmp/scratchpad
           mkdir -p /tmp/scratchpad/horizon-mod-bundle
           unzip -o ./native-mods/horizon_optimizer-*.hnmod -d /tmp/scratchpad/horizon-mod-bundle
-          # Drop the horizon_revision pin so it builds against any source revision
-          for f in $(find /tmp/scratchpad/horizon-mod-bundle -name horizon-mixin.toml); do sed -i '/^[[:space:]]*horizon_revision[[:space:]]*=/d' "$f"; done
+          for f in $(find /tmp/scratchpad/horizon-mod-bundle -name horizon-mixin.toml); do
+            echo "Stripping revision from: $f"
+            sed -i '/^[[:space:]]*horizon_revision[[:space:]]*=/d' "$f"
+            grep -q "horizon_revision" "$f" && echo "WARNING: still present" || echo "Stripped OK"
+          done
+
+      - name: Apply mixins + build
+        run: |
+          rm -rf /tmp/scratchpad/horizon-output
+          mkdir -p /tmp/scratchpad/horizon-output
           ./tools/horizon-mixins/target/debug/horizon-mixins apply --workspace . --mods /tmp/scratchpad/horizon-mod-bundle/mixins --out /tmp/scratchpad/horizon-output
           cd /tmp/scratchpad/horizon-output
-          cargo build --release -p horizon-client --bin horizon-client
+          cargo build --release -p horizon-client --bin horizon-client 2>&1 | tail -5
+          ls -la target/release/horizon-client
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
