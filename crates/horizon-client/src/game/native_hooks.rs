@@ -71,10 +71,6 @@ fn optimizer_toggle(enabled: bool, button: usize) -> Option<bool> {
     (button == 0).then_some(!enabled)
 }
 
-fn effective_far_detail(selected: FarDetail, optimizer: bool) -> FarDetail {
-    if optimizer { FarDetail::Full } else { selected }
-}
-
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
 /// scale of mouse turning.
@@ -368,20 +364,22 @@ impl Game<'_> {
 }
 
 /// Helpers for native mods, kept as stable as the hook points.
-// Native mods use these; nothing in Horizon does.
+// Native mods use these; Horizon's own built-in optimizer uses a few too.
 #[allow(dead_code)]
 impl Game<'_> {
-    /// Whether the built-in optimizer is enabled in both its settings page
-    /// and the Mods list.
+    /// Whether the built-in optimizer runs: on in both its settings page and
+    /// the Mods list, with no resource pack installed (a pack can replace an
+    /// opaque block's model or texture, which breaks the entity occlusion the
+    /// optimizer adds). The settings screen and agent state ask the same
+    /// predicate (`Settings::native_optimizer_enabled`) so what they report
+    /// matches what is drawn.
     pub(super) fn native_optimizer_enabled(&self) -> bool {
-        self.native_on(OPTIMIZER_ID) && self.settings.horizon.native_optimizer
+        self.settings.native_optimizer_enabled()
     }
-    /// The optimizer never selects geometry-reducing far detail.
+    /// Far detail as the renderer draws it, with the optimizer's override:
+    /// the player's pick, forced Full only while the optimizer runs.
     pub(super) fn native_far_detail(&self) -> FarDetail {
-        effective_far_detail(
-            self.settings.horizon.far_detail,
-            self.native_optimizer_enabled(),
-        )
+        self.settings.effective_far_detail()
     }
     /// Whether the player left mod `mod_id` on in Options > Mods. A mod
     /// turned off does nothing (check this first in each hook) until the
@@ -692,8 +690,7 @@ fn finite(v: f32, lo: f32, hi: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::{
-        FarDetail, NativeMod, effective_far_detail, optimizer_settings, optimizer_toggle,
-        register_builtin_native_mods,
+        FarDetail, NativeMod, optimizer_settings, optimizer_toggle, register_builtin_native_mods,
     };
 
     #[test]
@@ -716,6 +713,7 @@ mod tests {
 
     #[test]
     fn optimizer_keeps_reduced_far_detail_off_its_render_path() {
+        use horizon_client::graphics::effective_far_detail;
         assert_eq!(
             effective_far_detail(FarDetail::Reduced, false),
             FarDetail::Reduced

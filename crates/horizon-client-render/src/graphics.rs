@@ -246,6 +246,15 @@ impl FarDetail {
     }
 }
 
+/// The far detail the renderer draws: `selected`, forced Full while the
+/// built-in optimizer runs. The optimizer only runs on vanilla packs
+/// (`Settings::native_optimizer_enabled`), where its entity occlusion works;
+/// with a pack it is off, so the player's Reduced stands and the setting
+/// does not lie.
+pub fn effective_far_detail(selected: FarDetail, optimizer: bool) -> FarDetail {
+    if optimizer { FarDetail::Full } else { selected }
+}
+
 /// TAA upscaling: the world renders this much smaller than the resolution scale's size,
 /// and TAA builds the full-size picture from the jittered frames (FSR's and DLSS's ratios).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

@@ -340,7 +340,11 @@ pub(crate) fn game_releases(list: &serde_json::Value) -> Vec<Release> {
         .into_iter()
         .filter(|r| r.nightly.is_none())
         .collect();
-    out.sort_by(|a, b| b.published.cmp(&a.published).then(compare_versions(&b.tag, &a.tag)));
+    out.sort_by(|a, b| {
+        b.published
+            .cmp(&a.published)
+            .then(compare_versions(&b.tag, &a.tag))
+    });
     out
 }
 
@@ -2363,9 +2367,9 @@ pub fn horizon_update(releases: &[Release], installed: &[String]) -> Option<Rele
     // Nightly installs don't block a release update: this fork ranks releases by publish time,
     // and a Nightly tag would always outrank them.
     let newer = !installed.contains(&newest.tag)
-        && installed
-            .iter()
-            .all(|t| crate::nightly::date_of(t).is_some() || compare_versions(&newest.tag, t).is_ge());
+        && installed.iter().all(|t| {
+            crate::nightly::date_of(t).is_some() || compare_versions(&newest.tag, t).is_ge()
+        });
     newer.then(|| newest.clone())
 }
 
@@ -3133,8 +3137,7 @@ mod tests {
     /// is only named in the log.
     #[test]
     fn mojang_downloads_whatever_is_signed_in() {
-        let dir =
-            std::env::temp_dir().join(format!("horizon-owner-free-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("horizon-owner-free-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let pins = sources::Pins::read(&serde_json::json!({ "minecraft": {
             "version": "26.3",

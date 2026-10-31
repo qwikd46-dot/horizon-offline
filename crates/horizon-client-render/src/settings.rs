@@ -305,6 +305,28 @@ fn put_s(f: &mut OptionsFile, key: &str, v: &str) {
     }
 }
 impl Settings {
+    /// Whether the built-in optimizer runs: the player turned it on in both
+    /// its settings page and Options > Mods, and no resource pack is installed.
+    /// A pack can replace an opaque block's model or texture, which breaks the
+    /// entity occlusion the optimizer adds (`game/entity_culling.rs`), so with
+    /// one installed the optimizer is off: it adds nothing and only lies about
+    /// Far Detail. The game reads this through the same predicate
+    /// (`Game::native_optimizer_enabled`); keeping it here lets the settings
+    /// screen and agent state report what the renderer actually draws.
+    pub fn native_optimizer_enabled(&self) -> bool {
+        self.horizon.native_optimizer
+            && !self.mods.disabled.contains("horizon_optimizer")
+            && self.resource_packs.iter().all(|id| id == "vanilla")
+    }
+
+    /// Far Detail as the renderer draws it, with the optimizer's override.
+    pub fn effective_far_detail(&self) -> crate::graphics::FarDetail {
+        crate::graphics::effective_far_detail(
+            self.horizon.far_detail,
+            self.native_optimizer_enabled(),
+        )
+    }
+
     pub fn load(path: &Path) -> Self {
         let horizon = path
             .parent()
@@ -769,6 +791,25 @@ pub enum Opt {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn optimizer_forces_full_far_detail_only_when_it_runs() {
+        use crate::graphics::FarDetail;
+        let mut s = Settings::default();
+        s.horizon.far_detail = FarDetail::Reduced;
+        s.horizon.native_optimizer = true;
+        // Vanilla: the optimizer runs, so the renderer draws Full.
+        assert!(s.native_optimizer_enabled());
+        assert_eq!(s.effective_far_detail(), FarDetail::Full);
+        // Turned off in Options > Mods: the player's Reduced stands.
+        s.mods.disabled.insert("horizon_optimizer".into());
+        assert!(!s.native_optimizer_enabled());
+        assert_eq!(s.effective_far_detail(), FarDetail::Reduced);
+        // On again, but a resource pack breaks the occlusion: no override.
+        s.mods.disabled.clear();
+        s.resource_packs.push("faithful".into());
+        assert!(!s.native_optimizer_enabled());
+        assert_eq!(s.effective_far_detail(), FarDetail::Reduced);
+    }
     #[test]
     fn an_option_set_keeps_horizon_files() {
         let mut s = Settings::parse("fov:70\n");
