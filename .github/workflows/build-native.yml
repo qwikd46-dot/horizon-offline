@@ -19,7 +19,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install system deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev cmake
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev cmake unzip
 
       - name: Install horizon-mixins tool
         run: |
@@ -32,8 +32,9 @@ jobs:
           find . -type l -delete
           rm -rf /tmp/scratchpad/horizon-output
           mkdir -p /tmp/scratchpad
-          # Apply mixins to the source (output outside workspace)
-          ./tools/horizon-mixins/target/debug/horizon-mixins apply --workspace . --mods ./native-mods/horizon_optimizer --out /tmp/scratchpad/horizon-output
+          mkdir -p /tmp/scratchpad/horizon-mod-bundle
+          unzip -o ./native-mods/horizon_optimizer-0.1.0.hnmod -d /tmp/scratchpad/horizon-mod-bundle
+          ./tools/horizon-mixins/target/debug/horizon-mixins apply --workspace . --mods /tmp/scratchpad/horizon-mod-bundle/mixins --out /tmp/scratchpad/horizon-output
           cd /tmp/scratchpad/horizon-output
           cargo build --release -p horizon-client --bin horizon-client
 
