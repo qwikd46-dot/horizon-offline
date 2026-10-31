@@ -1,10 +1,11 @@
-//! Hook points for native mods (docs/native-mods.md, "Mods on the hook points"): empty
-//! functions the game calls at fixed places, for horizon-mixins bundles to
+//! Hook points for native mods (docs/native-mods.md, "Mods on the hook points"): functions
+//! the game calls at fixed places, for horizon-mixins bundles to
 //! hook with HEAD. Hooks that answer take an out parameter (`claimed`,
 //! `zoom`…) so several mods can hook the same point. A native mod keeps its
 //! own state in a module of its bundle; the helpers below read and draw what
 //! Horizon's own HUD extras do, and keep a mod's settings where the
-//! WebAssembly mod of the same id kept them.
+//! WebAssembly mod of the same id kept them. The built-in optimizer registers
+//! through the same native hooks and uses the renderer's existing culling path.
 //!
 //! API 2 adds the item panel beside container screens and its recipe pages
 //! (`native_panel_items`, `native_panel_recipes`, `native_panel_event`),
@@ -24,6 +25,7 @@ use horizon_client::{
     chat::ChatSource,
     extras::Corner,
     extras_hud::Corners,
+    graphics::FarDetail,
     hud::{HudBatch, rgba},
     keybinds,
     mod_list::{self, Installed, NativePage},
@@ -36,6 +38,42 @@ use winit::{event::MouseButton, keyboard::KeyCode};
 /// source it builds; keep its form.
 #[allow(dead_code)]
 pub(crate) const NATIVE_HOOKS_API: u32 = 2;
+
+const OPTIMIZER_ID: &str = "horizon_optimizer";
+
+fn optimizer_mod() -> NativeMod {
+    NativeMod {
+        id: OPTIMIZER_ID.into(),
+        title: "Horizon Optimizer".into(),
+        description: "Cull entities hidden by terrain and keep distant terrain at Full detail."
+            .into(),
+        ..NativeMod::default()
+    }
+}
+
+fn register_builtin_native_mods(mods: &mut Vec<NativeMod>) {
+    mods.push(optimizer_mod());
+}
+
+fn optimizer_button(enabled: bool) -> String {
+    if enabled {
+        "Optimization: On".into()
+    } else {
+        "Optimization: Off".into()
+    }
+}
+
+fn optimizer_settings(enabled: bool) -> [String; 1] {
+    [optimizer_button(enabled)]
+}
+
+fn optimizer_toggle(enabled: bool, button: usize) -> Option<bool> {
+    (button == 0).then_some(!enabled)
+}
+
+fn effective_far_detail(selected: FarDetail, optimizer: bool) -> FarDetail {
+    if optimizer { FarDetail::Full } else { selected }
+}
 
 /// The zoom a native mod asks for (`native_zoom`): the factor (1 is none),
 /// eased through the field of view like the spyglass when `smooth`, and the
@@ -259,7 +297,7 @@ const MAPPINGS: [(&str, Option<KeyCode>); 9] = [
     ("key.use", None),
 ];
 
-/// The hook points. Each does nothing in Horizon.
+/// The hook points, including Horizon's built-in native mods.
 impl Game<'_> {
     /// Once a frame, in a world or not, after Horizon's extras.
     pub(super) fn native_frame(&mut self, elapsed: Duration) {
@@ -302,17 +340,25 @@ impl Game<'_> {
     }
     /// Options > Mods lists the native mods: push yours.
     pub(super) fn native_mods(&mut self, mods: &mut Vec<NativeMod>) {
-        let _ = mods;
+        register_builtin_native_mods(mods);
     }
     /// The buttons of mod `mod_id`'s settings page, under its keys: push
     /// their labels when it is yours. Asked again each time the page opens
     /// and after each click.
     pub(super) fn native_settings(&mut self, mod_id: &str, buttons: &mut Vec<String>) {
-        let _ = (mod_id, buttons);
+        if mod_id == OPTIMIZER_ID {
+            buttons.extend(optimizer_settings(self.settings.horizon.native_optimizer));
+        }
     }
     /// Button `button` of mod `mod_id`'s settings page was clicked.
     pub(super) fn native_settings_click(&mut self, mod_id: &str, button: usize) {
-        let _ = (mod_id, button);
+        if mod_id == OPTIMIZER_ID
+            && let Some(enabled) = optimizer_toggle(self.settings.horizon.native_optimizer, button)
+        {
+            self.settings.horizon.native_optimizer = enabled;
+            self.settings.save(&Self::options_path());
+            self.apply_settings();
+        }
     }
     /// The player did `event` on mod `mod_id`'s panel (`native_panel_items`):
     /// act on it when it is yours. API 2.
@@ -325,6 +371,18 @@ impl Game<'_> {
 // Native mods use these; nothing in Horizon does.
 #[allow(dead_code)]
 impl Game<'_> {
+    /// Whether the built-in optimizer is enabled in both its settings page
+    /// and the Mods list.
+    pub(super) fn native_optimizer_enabled(&self) -> bool {
+        self.native_on(OPTIMIZER_ID) && self.settings.horizon.native_optimizer
+    }
+    /// The optimizer never selects geometry-reducing far detail.
+    pub(super) fn native_far_detail(&self) -> FarDetail {
+        effective_far_detail(
+            self.settings.horizon.far_detail,
+            self.native_optimizer_enabled(),
+        )
+    }
     /// Whether the player left mod `mod_id` on in Options > Mods. A mod
     /// turned off does nothing (check this first in each hook) until the
     /// launcher's next build leaves it out.
@@ -633,6 +691,42 @@ fn finite(v: f32, lo: f32, hi: f32) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        FarDetail, NativeMod, effective_far_detail, optimizer_settings, optimizer_toggle,
+        register_builtin_native_mods,
+    };
+
+    #[test]
+    fn optimizer_is_a_registered_native_mod_with_a_toggle() {
+        let mut mods: Vec<NativeMod> = Vec::new();
+        register_builtin_native_mods(&mut mods);
+        let native = &mods[0];
+        assert_eq!(native.id, "horizon_optimizer");
+        assert_eq!(native.title, "Horizon Optimizer");
+        assert!(native.description.contains("Full detail"));
+        assert_eq!(
+            optimizer_settings(false),
+            [String::from("Optimization: Off")]
+        );
+        assert_eq!(optimizer_settings(true), [String::from("Optimization: On")]);
+        assert_eq!(optimizer_toggle(false, 0), Some(true));
+        assert_eq!(optimizer_toggle(true, 0), Some(false));
+        assert_eq!(optimizer_toggle(false, 1), None);
+    }
+
+    #[test]
+    fn optimizer_keeps_reduced_far_detail_off_its_render_path() {
+        assert_eq!(
+            effective_far_detail(FarDetail::Reduced, false),
+            FarDetail::Reduced
+        );
+        assert_eq!(
+            effective_far_detail(FarDetail::Reduced, true),
+            FarDetail::Full
+        );
+        assert_eq!(effective_far_detail(FarDetail::Full, true), FarDetail::Full);
+    }
+
     /// horizon-mixins refuses targets whose body has a `cfg` or a macro:
     /// the hook points and helpers must stay free of both. The launcher
     /// reads the API line as it is.
@@ -659,7 +753,7 @@ mod tests {
         let hooks = catalog["hooks"].as_array().unwrap();
         let source = include_str!("native_hooks.rs");
         let section = source
-            .split("/// The hook points. Each does nothing in Horizon.")
+            .split("/// The hook points, including Horizon's built-in native mods.")
             .nth(1)
             .unwrap()
             .split("/// Helpers for native mods")

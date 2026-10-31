@@ -169,23 +169,34 @@ fn bundle_in(dir: &Path) -> Result<Option<Bundle>, String> {
         return Ok(None);
     }
     let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let native_json: serde_json::Value =
+    let native: horizon_mods::index::native::Manifest =
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    let field = |name: &str| native_json[name].as_str().map(str::to_owned);
-    let id = field("id").ok_or_else(|| format!("{} has no id.", path.display()))?;
-    let found = bundle(&dir.join("mixins").join(&id), field("mixins"))?;
-    match (&found.horizon, field("horizon")) {
-        (Some(pinned), Some(native)) if *pinned != native => Err(format!(
-            "{id}: {NATIVE_MANIFEST} pins Horizon {native}, its {MANIFEST} {pinned}."
-        )),
-        (_, native) => Ok(Some(Bundle {
-            horizon: found.horizon.clone().or(native),
-            hooks: native_json["hooks"]
-                .as_u64()
-                .and_then(|v| u32::try_from(v).ok()),
-            ..found
-        })),
+    native
+        .check()
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let found = bundle(
+        &dir.join("mixins").join(&native.id),
+        Some(native.mixins.clone()),
+    )?;
+    if found.id != native.id || found.version != native.version {
+        return Err(format!(
+            "{}: {NATIVE_MANIFEST} and {MANIFEST} identity/version differ.",
+            path.display()
+        ));
     }
+    if found.horizon.as_deref() != Some(native.horizon.as_str()) {
+        return Err(format!(
+            "{}: {NATIVE_MANIFEST} pins Horizon {}, its {MANIFEST} {}.",
+            native.id,
+            native.horizon,
+            found.horizon.as_deref().unwrap_or("no revision")
+        ));
+    }
+    Ok(Some(Bundle {
+        horizon: Some(native.horizon),
+        hooks: native.hooks,
+        ..found
+    }))
 }
 
 fn bundle(dir: &Path, mixins: Option<String>) -> Result<Bundle, String> {
@@ -1136,6 +1147,43 @@ mod tests {
             (again.id.as_str(), again.horizon.as_deref()),
             ("zoom", Some(B))
         );
+    }
+
+    #[test]
+    fn unpacked_native_manifests_reject_invalid_hook_metadata_and_revision_pins() {
+        let d = dir("invalid-native-manifest");
+        write_native(&d, "zoom", A, B);
+        let path = d.join(NATIVE_MANIFEST);
+        let original = fs::read_to_string(&path).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_str(&original).unwrap();
+
+        manifest["hooks"] = serde_json::json!("2");
+        fs::write(&path, manifest.to_string()).unwrap();
+        assert!(bundles(&d).unwrap_err().contains("invalid type"));
+
+        manifest["hooks"] = serde_json::json!(0);
+        fs::write(&path, manifest.to_string()).unwrap();
+        assert!(bundles(&d).unwrap_err().contains("invalid native manifest"));
+
+        manifest.as_object_mut().unwrap().remove("hooks");
+        manifest["unexpected"] = serde_json::json!(true);
+        fs::write(&path, manifest.to_string()).unwrap();
+        assert!(bundles(&d).unwrap_err().contains("unknown field"));
+
+        fs::write(&path, &original).unwrap();
+        fs::write(
+            d.join("mixins/zoom").join(MANIFEST),
+            format!("[mod]\nid = \"zoom\"\nversion = \"0.2.0\"\n[compatibility]\nhorizon_revision = \"{A}\"\n"),
+        )
+        .unwrap();
+        assert!(bundles(&d).unwrap_err().contains("identity/version differ"));
+
+        fs::write(
+            d.join("mixins/zoom").join(MANIFEST),
+            format!("[mod]\nid = \"zoom\"\nversion = \"0.3.0\"\n[compatibility]\nhorizon_revision = \"{B}\"\n"),
+        )
+        .unwrap();
+        assert!(bundles(&d).unwrap_err().contains("pins Horizon"));
     }
 
     #[test]
