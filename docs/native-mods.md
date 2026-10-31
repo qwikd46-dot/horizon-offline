@@ -6,9 +6,16 @@ is a `horizon-mixin.toml` and a few `.rs` helpers that hook into named functions
 RETURN, MODIFY_ARG, OVERWRITE...; the tool's README lists them). A port such as Veinminer is three HEAD hooks and
 one module. Start a mod from [horizon-native-mod-template](https://github.com/horizon-rust/horizon-native-mod-template).
 
-Native mods are native code with the player's rights, not sandboxed. The launcher turns them on only when the player
-installs one (after a notice) and builds them only behind a red warning; the registry lists one only after a review; and
-they play in a game of their own, built for the instance they are installed in.
+The game also registers **Horizon Optimizer** (`horizon_optimizer`) as a built-in native mod in
+`crates/horizon-client/src/game/native_hooks.rs`. Its optimization setting is off by default. When enabled, it culls
+entities hidden by opaque terrain and keeps far terrain on `Full` detail; it never selects the geometry-reducing
+`Reduced` far-detail path. The existing textured far-terrain mesher remains in use; the old standalone optimizer
+bundle and its overlay-build workflow are no longer used.
+
+Registry native mods are native code with the player's rights, not sandboxed. The launcher turns those bundles on only
+when the player installs one (after a notice) and builds them only behind a red warning; the registry lists one only
+after a review; and they play in a game of their own, built for the instance they are installed in. Built-in native
+mods, such as Horizon Optimizer above, ship as part of Horizon and do not use that bundle-build flow.
 
 ## Pinned to a Nightly
 
@@ -32,6 +39,10 @@ pin, else on the installed version's commit (the game the player plays), after c
 mod was tested on. In its own copy of the mod it sets `horizon_revision` to the commit it builds on. Horizon's
 own native mods (Zoom, FPS counter, Keystrokes, Minimap; horizon-rust/horizon-mods, `native/<name>/`) are made this way, so any of them build together
 with no re-release for each Nightly. The `mods` feature (WebAssembly mods) is passed to the build only when the source has it.
+
+An unpacked `.hnmod` is checked against the same strict manifest schema as a downloaded bundle: unknown fields,
+invalid hook API values, identity/version mismatches, and a Horizon revision that differs from the mixin's exact pin
+stop the build with an error. Bundles with no `hooks` pin remain tied to their exact `horizon` revision.
 
 API 2 adds the item panel beside container screens and its recipe pages (`native_panel_items`,
 `native_panel_recipes`, and the hook `native_panel_event` for the player's clicks, searches and keys over items), and

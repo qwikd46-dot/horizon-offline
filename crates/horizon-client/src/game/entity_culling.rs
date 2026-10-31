@@ -13,6 +13,10 @@ fn opaque(facts: &StateFacts) -> bool {
         && facts.full_collision
 }
 
+fn culling_enabled(setting: bool, optimizer: bool) -> bool {
+    setting || optimizer
+}
+
 impl Game<'_> {
     pub(super) fn prepare_entity_culling(&mut self, camera: glam::DVec3) {
         // Spans tell the pack's passes which entities are hidden; without them, nothing changes.
@@ -21,7 +25,10 @@ impl Game<'_> {
             _ => (false, false),
         };
         let at = camera.to_array().map(|v| v.floor() as i32);
-        self.entity_culler = (self.settings.horizon.entity_culling
+        self.entity_culler = (culling_enabled(
+            self.settings.horizon.entity_culling,
+            self.native_optimizer_enabled(),
+        )
             // Packs can replace an opaque block's model or texture.
             && self.settings.resource_packs.iter().all(|id| id == "vanilla")
             && self.player.is_some()
@@ -179,5 +186,12 @@ mod tests {
             entity_view_scale(12, 1.0),
         );
         assert_eq!(range, 96.0);
+    }
+
+    #[test]
+    fn optimizer_only_adds_entity_occlusion() {
+        assert!(!culling_enabled(false, false));
+        assert!(culling_enabled(false, true));
+        assert!(culling_enabled(true, false));
     }
 }

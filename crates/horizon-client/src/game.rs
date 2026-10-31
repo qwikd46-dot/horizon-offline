@@ -13025,7 +13025,7 @@ impl Game<'_> {
     /// LOD Distance and Far Detail Reduced as the player chose them.
     fn far_terrain_choice(&self) -> (u32, bool) {
         let g = &self.settings.horizon;
-        let reduced = g.far_detail == horizon_client::graphics::FarDetail::Reduced;
+        let reduced = self.native_far_detail() == horizon_client::graphics::FarDetail::Reduced;
         (g.lod_distance, reduced)
     }
     /// LOD Distance as far terrain uses it (`graphics::lod_distance_capped`).
