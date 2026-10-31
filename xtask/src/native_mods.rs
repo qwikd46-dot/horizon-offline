@@ -122,7 +122,7 @@ pub fn run() -> Result<(), String> {
     let _ = walk_remove_symlinks(&merged_mods);
 
     // Apply with horizon-mixins
-    let out_dir = PathBuf::from("/home/binwalk").join("horizon-build-output");
+    let out_dir = std::env::var("HORIZON_BUILD_OUTPUT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/tmp").join("horizon-build-output"));
     let _ = fs::remove_dir_all(&out_dir);
 
     println!("Applying {} mod bundle(s)...", mods_dirs.len());
