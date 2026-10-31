@@ -1,0 +1,38 @@
+name: Build Native-Modded Horizon
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mod_source:
+        description: 'URL of a .hnmod or .hnmod bundle to build in'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev cmake
+
+      - name: Install horizon-mixins tool
+        run: |
+          mkdir -p tools
+          git clone https://github.com/horizon-rust/horizon-mixins tools/horizon-mixins
+          cd tools/horizon-mixins && cargo build --locked -p horizon-mixins-cli
+
+      - name: Run build-native (xtask)
+        run: cargo run -p xtask -- build-native
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: horizon-client
+          path: /home/runner/horizon-build-output/target/release/horizon-client
+          if-no-files-found: error
