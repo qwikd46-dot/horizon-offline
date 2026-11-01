@@ -28,6 +28,21 @@ fn the_example_pack_passes() {
 }
 
 #[test]
+fn the_built_in_pack_passes() {
+    let packs = horizon_shader_api::builtin::all();
+    assert!(!packs.is_empty());
+    for builtin in packs {
+        let pack = builtin
+            .pack()
+            .unwrap_or_else(|e| panic!("{}: {e}", builtin.dir));
+        let report =
+            check(&pack).unwrap_or_else(|problems| panic!("{}: {problems:?}", builtin.dir));
+        let labels: Vec<_> = report.stages.iter().map(|s| s.label.as_str()).collect();
+        assert_eq!(labels, ["Atmosphere", "Material", "Bloom", "Tonemap"]);
+    }
+}
+
+#[test]
 fn every_template_makes_a_pack_that_passes() {
     let root = scratch("templates");
     for template in ["post", "sky", "material"] {

@@ -409,7 +409,9 @@ impl Loading {
                 }
                 Event::ListShaderPacks => {
                     self.settings.shader_packs =
-                        horizon_client::shader_pack_list::scan(&Game::shader_packs_dir());
+                        horizon_client::shader_pack_list::scan_installing_builtin(
+                            &Game::shader_packs_dir(),
+                        );
                 }
                 Event::ShaderPack => self.save_menu_settings(),
                 Event::OpenShaderPackFolder => {

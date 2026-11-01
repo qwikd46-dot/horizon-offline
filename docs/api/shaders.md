@@ -96,6 +96,8 @@ stages.
 
 ## Changelog
 
+- 2026-11-01: Horizon Complementary, the pack the game ships with, and `builtin::install` (`shaderpacks/` gets it
+  on first run); a test fails when a built-in pack stops passing the check.
 - 2026-10-26: the material stage in the game: terrain's surfaces through the pack's `material`.
 - 2026-10-26: the sky stage in the game: the pack's `sky` gets vanilla's colour along each ray.
 - 2026-10-26: the post stage in the game (`HORIZON_SHADER_PACK`, hot reload with the last good pack kept).
