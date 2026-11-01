@@ -56,6 +56,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # next_on_line reads `git tag`, so the tags must be here or the fork is tagged 0.2.0.
+          fetch-tags: true
       - id: mode
         run: echo "dry_run=${{ github.ref != 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}" >> "$GITHUB_OUTPUT"
       - id: decide
@@ -184,6 +186,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
       - name: Notes
         env:
           GH_TOKEN: ${{ github.token }}
