@@ -30,7 +30,7 @@ fn sky(input: SkyInput) -> vec4<f32> {
         let cover = cloud_cover(d, !performance_mode) * clear;
         // Lit from the sun side by day, a dim slate by night.
         let lit = mix(vec3<f32>(0.09, 0.11, 0.15), vec3<f32>(1.0, 0.97, 0.93), day);
-        let warm = mix(lit, vec3<f32>(1.0, 0.72, 0.45), low * day * warmth * 2.0);
+        let warm = mix(lit, vec3<f32>(1.0, 0.72, 0.45), min(low * day * warmth * 2.0, 1.0));
         color = mix(color, warm * (0.75 + 0.25 * toward), cover * 0.85);
     }
 
