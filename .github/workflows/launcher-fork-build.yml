@@ -171,6 +171,23 @@ jobs:
           RELEASE_SIGNING_KEY_NEXT: ${{ secrets.RELEASE_SIGNING_KEY_NEXT }}
           TAG: ${{ needs.decide.outputs.tag }}
         run: bash tools/ci/sign_release.sh "$TAG" dist/horizon-launcher-*
+      # The public half of each key, which release-keys.txt must list or every launcher refuses the
+      # release. Printed on purpose: it is a public key, and it is what turns a bare "signature doesn't
+      # match" into the one line to add.
+      - name: The keys' public halves (release-keys.txt must list them)
+        if: always()
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          RELEASE_SIGNING_KEY_NEXT: ${{ secrets.RELEASE_SIGNING_KEY_NEXT }}
+        run: |
+          for name in RELEASE_SIGNING_KEY RELEASE_SIGNING_KEY_NEXT; do
+            [[ -n "${!name:-}" ]] || continue
+            key=$(mktemp)
+            printf '%s' "${!name}" | base64 --decode > "$key"
+            printf '%s: ' "$name"
+            openssl pkey -inform DER -in "$key" -pubout -outform DER 2>/dev/null | tail -c 32 | base64
+            rm -f "$key"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: signature
