@@ -189,7 +189,9 @@ The opening, then Play ([clip](docs/opening.webm)):
   The choice is the game's own: `resourcePacks` in options.txt (a pack turned on goes on top, as
   the game's Resource Packs screen does) and `pickedShaderPack` in `horizon-graphics.txt` (one shader
   pack at a time). **Add pack…** or a `.zip` / `.hshader` dropped on the section copies it into the
-  right folder; **Remove** turns it off and moves it to the trash after a confirmation. From the
+  right folder; **Remove** turns it off and moves it to the trash after a confirmation. Horizon's own
+  pack, Horizon Complementary, needs no download: the game writes it into the instance's
+  `shaderpacks/` the first time it lists packs, so it shows up here like any other. From the
   command line: `horizon-launcher packs [list|add|on|off|remove] [--kind resource|shader]
   [--instance <name>]`.
 - **Screenshots**: Home shows the selected instance's newest screenshots (what F2 saves in its
