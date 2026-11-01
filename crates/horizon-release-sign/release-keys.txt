@@ -6,3 +6,7 @@ MU4oiIQcCxkZvbwSjjXs7SySCuM6ywRQ3nGaJYZG0gw=
 # This fork's releases are signed with its own key (the RELEASE_SIGNING_KEY secret of the fork's
 # repository, no environment), so launchers built here accept the fork's updates.
 2zza2dKGwE0Crcvnatub8fU8Vk0rkExjzK1t+iN2BXk=
+# The key RELEASE_SIGNING_KEY currently holds. Without this line launcher-fork-build signs a release
+# and then refuses to publish it ("signature doesn't match Horizon's release key"), so the fork can
+# never release. The public half is printed by that workflow's "The keys' public halves" step.
+VbS/ahiKmVmQI8EzbTzF0j+chAG39VPSy5UbPCoVdjc=
