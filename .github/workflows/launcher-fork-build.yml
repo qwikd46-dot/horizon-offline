@@ -67,6 +67,7 @@ jobs:
           # there is no pull request for release_train to find on a fork's direct merge.
           FORCE: ${{ (github.event_name == 'push' || inputs.force) && 'yes' || '' }}
         run: |
+          set -o pipefail
           python3 tools/release_train.py decide --kind launcher ${HEAD_SHA:+--head "$HEAD_SHA"} ${FORCE:+--force} | tee decision.json
           echo "### $(jq -r '.reason' decision.json)" >> "$GITHUB_STEP_SUMMARY"
           tag=$(jq -r '.tag' decision.json)
