@@ -45,7 +45,9 @@ concurrency:
 jobs:
   decide:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The walk covers every merge upstream ever made; the lookups run together, but leave room so a
+    # slow runner decides rather than gets cancelled mid-walk.
+    timeout-minutes: 20
     outputs:
       release: ${{ steps.decide.outputs.release }}
       tag: ${{ steps.decide.outputs.tag }}

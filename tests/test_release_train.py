@@ -1,6 +1,8 @@
 import datetime as dt
 from pathlib import Path
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -158,6 +160,33 @@ class ReleaseTrainTests(unittest.TestCase):
             last, prs = train.gather("launcher", "head")
         self.assertIsNone(last)
         self.assertEqual([pr["number"] for pr in prs], [1], "the number the repository doesn't have is skipped")
+
+    def test_the_walk_asks_about_every_merge_at_once(self):
+        # A fork's walk crosses thousands of upstream merges. Asked one after another that outruns the
+        # decide job's timeout, so the lookups must overlap rather than queue.
+        live, peak = 0, 0
+        lock = threading.Lock()
+
+        def gh_json(*arguments, check=True):
+            nonlocal live, peak
+            if arguments[:1] != ("pr",):
+                return []
+            with lock:
+                live += 1
+                peak = max(peak, live)
+            time.sleep(0.02)
+            with lock:
+                live -= 1
+            return {"number": int(arguments[2]), "title": "t", "url": "u", "labels": [],
+                    "closingIssuesReferences": [], "author": {"login": "a"}, "mergedAt": NOW.isoformat()}
+
+        merges = [(number, f"c{number}") for number in range(1, 65)]
+        with mock.patch.object(train, "gh_json", gh_json), \
+                mock.patch.object(train, "merged_pull_requests", lambda base, head: merges), \
+                mock.patch.object(train, "changed_paths", lambda commit: ["launcher/src/main.rs"]):
+            prs = train.merged_between("launcher", "base", "head")
+        self.assertEqual(len(prs), 64)
+        self.assertGreater(peak, 1, "the lookups ran one at a time")
 
     def test_an_open_release_blocker_holds_every_release_even_forced(self):
         release, why = train.decision("game", [pr(1, labels=["release-now"])], NOW, blockers=[7, 9])

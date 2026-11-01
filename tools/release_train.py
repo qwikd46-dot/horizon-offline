@@ -34,6 +34,7 @@ Prints the decision as JSON and writes it to $GITHUB_OUTPUT when set. Needs git 
 
 import argparse
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -478,9 +479,14 @@ def base_of(last, head):
 def merged_between(kind, base, head):
     """The pull requests merged into main between base and head, with their player-facing paths ("paths")."""
     exporter_paths = exporters()
+    merges = merged_pull_requests(base, head)
+    # A fork's walk crosses every merge upstream ever made (thousands), so ask about them
+    # together rather than one `gh pr view` after another: sequentially that outruns the job's
+    # timeout and the decision is cancelled.
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        found = list(pool.map(pull_request, [number for number, _ in merges]))
     prs = []
-    for number, commit in merged_pull_requests(base, head):
-        pr = pull_request(number)
+    for (number, commit), pr in zip(merges, found):
         if pr is None:
             continue
         pr["paths"] = [path for path in changed_paths(commit) if player_facing(path, kind, exporter_paths)]
