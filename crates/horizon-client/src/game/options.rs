@@ -265,7 +265,9 @@ impl Game<'_> {
                 }
                 Event::ListShaderPacks => {
                     self.settings.shader_packs =
-                        horizon_client::shader_pack_list::scan(&Self::shader_packs_dir());
+                        horizon_client::shader_pack_list::scan_installing_builtin(
+                            &Self::shader_packs_dir(),
+                        );
                 }
                 // Saved; the next frame's `shader_pack_inputs` loads the pick.
                 Event::ShaderPack => self.settings.save(&Self::options_path()),

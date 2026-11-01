@@ -3,6 +3,7 @@
 //! a folder or a `.hshader`. This crate reads and checks packs; the game, the
 //! launcher and the registry all use it, so a pack is judged the same way
 //! everywhere.
+pub mod builtin;
 pub mod check;
 pub mod inputs;
 pub mod manifest;
@@ -10,6 +11,7 @@ pub mod package;
 pub mod reference;
 pub mod stages;
 
+pub use builtin::Builtin;
 pub use check::{Problem, Report, check};
 pub use inputs::Frame;
 pub use manifest::{API, MANIFEST, Manifest, OptionKind, PackOption, SCHEMA, Stage};
