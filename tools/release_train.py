@@ -103,8 +103,8 @@ def run(*command, check=True):
     return result.stdout
 
 
-def gh_json(*arguments):
-    return json.loads(run("gh", *arguments) or "null")
+def gh_json(*arguments, check=True):
+    return json.loads(run("gh", *arguments, check=check) or "null")
 
 
 def exporters():
@@ -228,8 +228,12 @@ def changed_paths(commit):
 
 
 def pull_request(number):
+    """The pull request, or None when this repository has no such number: a fork carries upstream's merge
+    commits, so a walk over them names upstream's numbers (#3, #4...), which don't exist here."""
     data = gh_json("pr", "view", str(number), "--repo", REPO, "--json",
-                   "number,title,url,labels,closingIssuesReferences,author,mergedAt")
+                   "number,title,url,labels,closingIssuesReferences,author,mergedAt", check=False)
+    if not data:
+        return None
     return {
         "number": data["number"],
         "title": data["title"].strip(),
@@ -458,8 +462,17 @@ def gather(kind, head, releases=None):
     paths."""
     releases = published_releases() if releases is None else releases
     last = last_release(releases, kind)
-    base = last["tag_name"] if last else run("git", "rev-list", "--max-parents=0", head).split()[0]
-    return last, merged_between(kind, base, head)
+    return last, merged_between(kind, base_of(last, head), head)
+
+
+def base_of(last, head):
+    """Where the walk over merged pull requests starts: the last published release's tag; without one, the
+    newest tag reachable from head, so a repository that carries another's merges (a fork) walks only its own
+    and never names a pull request number the repository doesn't have; without any tag, the root commit."""
+    if last:
+        return last["tag_name"]
+    described = run("git", "describe", "--tags", "--abbrev=0", head, check=False).strip()
+    return described or run("git", "rev-list", "--max-parents=0", head).split()[0]
 
 
 def merged_between(kind, base, head):
@@ -468,6 +481,8 @@ def merged_between(kind, base, head):
     prs = []
     for number, commit in merged_pull_requests(base, head):
         pr = pull_request(number)
+        if pr is None:
+            continue
         pr["paths"] = [path for path in changed_paths(commit) if player_facing(path, kind, exporter_paths)]
         prs.append(pr)
     return prs

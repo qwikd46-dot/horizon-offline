@@ -140,6 +140,25 @@ class ReleaseTrainTests(unittest.TestCase):
         self.assertFalse(decide([pr(1)], paused=True))
         self.assertTrue(decide([], paused=True, force=True))
 
+    def test_a_fork_walks_only_its_own_merges(self):
+        # A fork carries upstream's merge commits, so the walk from the root names upstream's numbers
+        # (#3, #4...), which don't exist here. Without a published release, the walk starts at the
+        # newest tag reachable from head, and a number the repository doesn't have is skipped.
+        def gh_json(*arguments, check=True):
+            if arguments[:1] == ("pr",):
+                number = arguments[2]
+                return None if number == "3" else {"number": int(number), "title": "t", "url": "u", "labels": [],
+                                                   "closingIssuesReferences": [], "author": {"login": "a"},
+                                                   "mergedAt": NOW.isoformat()}
+            return []
+        with mock.patch.object(train, "gh_json", gh_json), \
+                mock.patch.object(train, "merged_pull_requests", lambda base, head: [(3, "c"), (1, "d")]), \
+                mock.patch.object(train, "changed_paths", lambda commit: ["launcher/src/main.rs"]), \
+                mock.patch.object(train, "run", lambda *a, **k: "" if a[:1] == ("git",) and "describe" in a else "root\n"):
+            last, prs = train.gather("launcher", "head")
+        self.assertIsNone(last)
+        self.assertEqual([pr["number"] for pr in prs], [1], "the number the repository doesn't have is skipped")
+
     def test_an_open_release_blocker_holds_every_release_even_forced(self):
         release, why = train.decision("game", [pr(1, labels=["release-now"])], NOW, blockers=[7, 9])
         self.assertFalse(release)
