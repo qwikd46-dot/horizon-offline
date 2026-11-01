@@ -1,0 +1,120 @@
+schema = 1
+id = "horizon_complementary"
+name = "Horizon Complementary"
+version = "1.0.0"
+api = "0.1"
+description = "A complementary/BLS-inspired look tuned for Horizon with cloud, fog, bloom and tonemap toggles, plus a performance-friendly mode."
+authors = ["Horizon", "qwikd46-dot"]
+license = "MIT"
+shared = ["common.wgsl"]
+
+[sky]
+file = "sky.wgsl"
+name = "Atmosphere"
+
+[material]
+file = "material.wgsl"
+name = "Material"
+
+[[post]]
+file = "post/bloom.wgsl"
+name = "Bloom"
+
+[[post]]
+file = "post/grade.wgsl"
+name = "Tonemap"
+
+[[options]]
+id = "clouds"
+name = "Clouds"
+description = "Enables the atmospheric cloud layer. Off preserves a cleaner, faster look."
+type = "bool"
+default = true
+
+[[options]]
+id = "fog"
+name = "Fog"
+description = "Distance fog and haze. Disable for cleaner horizons and a sharper look."
+type = "bool"
+default = true
+
+[[options]]
+id = "bloom"
+name = "Bloom"
+description = "Adds a soft bloom around bright lights and sunrise highlights."
+type = "bool"
+default = true
+
+[[options]]
+id = "vignette"
+name = "Vignette"
+description = "Gentle darkness around the frame edges."
+type = "bool"
+default = false
+
+[[options]]
+id = "filmic"
+name = "Filmic curve"
+description = "Wraps the tone response for a more cinematic contrast curve."
+type = "bool"
+default = true
+
+[[options]]
+id = "saturation"
+name = "Saturation"
+description = "Colour intensity of the final frame."
+type = "float"
+default = 1.18
+min = 0.6
+max = 1.8
+step = 0.02
+
+[[options]]
+id = "contrast"
+name = "Contrast"
+description = "Mid-tone contrast, tuned to mimic a lifted but natural look."
+type = "float"
+default = 1.08
+min = 0.8
+max = 1.55
+step = 0.01
+
+[[options]]
+id = "exposure"
+name = "Exposure"
+description = "Overall brightness before tonemapping."
+type = "float"
+default = 1.05
+min = 0.6
+max = 1.8
+step = 0.01
+
+[[options]]
+id = "warmth"
+name = "Warmth"
+description = "Adds a golden sunrise/sunset tint without making the world too orange."
+type = "float"
+default = 0.28
+min = 0.0
+max = 0.8
+step = 0.01
+
+[[options]]
+id = "night_boost"
+name = "Night brightness"
+description = "A subtle lift in dark scenes while preserving a moody look."
+type = "float"
+default = 0.18
+min = 0.0
+max = 0.6
+step = 0.01
+
+[[options]]
+id = "performance_mode"
+name = "Performance mode"
+description = "Uses a cheaper bloom and softer fog profile for lower-end GPUs."
+type = "bool"
+default = false
+
+[budget]
+gpu_ms = 2.5
