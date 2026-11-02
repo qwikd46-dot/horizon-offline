@@ -600,6 +600,8 @@ pub fn apply(cmd: &mut Command, instance: &Instance) -> Result<(), String> {
     // Horizon's own shader packs, written into this instance's `shaderpacks/` when missing, so
     // the Shader Packs page has them whatever game build is installed (packs::install_builtin).
     crate::packs::install_builtin(&instance.home);
+    // The engine's optimizations and the FPS overlay, on a fresh instance only (see the function).
+    crate::packs::install_optimized_defaults(&instance.home);
     match instance.kind {
         Kind::Default => return Ok(()),
         Kind::Own => {

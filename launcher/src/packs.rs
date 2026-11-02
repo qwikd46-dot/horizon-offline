@@ -62,6 +62,47 @@ pub fn install_builtin(home: &Path) -> Vec<&'static str> {
     horizon_shader_api::builtin::install(&dir)
 }
 
+/// The marker saying the performance profile was written; its absence is what makes it run once.
+const OPTIMIZED: &str = ".horizon-optimized";
+/// The engine's own optimizations and the frame-time overlay, as an all-in-one performance mod
+/// would set them: occlusion culling of caves and entities, the native optimizer, distant-terrain
+/// LODs, every worker, and the FPS overlay on. Each is a real graphics option the player can still
+/// change afterwards.
+const OPTIMIZED_DEFAULTS: &[(&str, &str)] = &[
+    ("preset", "custom"),
+    ("lodDistance", "16"),
+    ("farDetail", "full"),
+    ("nativeOptimizer", "true"),
+    ("caveCulling", "true"),
+    ("entityCulling", "true"),
+    ("chunkUpdates", "0"),
+    ("uploadBudgetKiB", "0"),
+    ("sky", "true"),
+    ("fog", "true"),
+    ("weather", "true"),
+    ("animatedTextures", "true"),
+    ("workers", "0"),
+    ("overlay", "fps"),
+    ("resolutionScale", "100"),
+];
+
+/// Turns on the engine's optimizations and the FPS overlay in `home` once, and returns whether it
+/// wrote them. A marker file remembers it, so a player who turns any of them back off keeps that
+/// choice: this only fills in a fresh instance's defaults, it never fights the player.
+pub fn install_optimized_defaults(home: &Path) -> bool {
+    let marker = home.join(OPTIMIZED);
+    if marker.exists() || fs::create_dir_all(home).is_err() {
+        return false;
+    }
+    let path = home.join(GRAPHICS);
+    for (key, value) in OPTIMIZED_DEFAULTS {
+        if set_line(&path, key, value).is_err() {
+            return false;
+        }
+    }
+    fs::write(&marker, "horizon launcher: performance profile applied\n").is_ok()
+}
+
 /// The packs of `kind` in the game folder `home`, by name: turning one on or off leaves it where
 /// it is.
 pub fn list(home: &Path, kind: Kind) -> Vec<Pack> {

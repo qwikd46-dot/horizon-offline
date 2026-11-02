@@ -196,3 +196,27 @@ fn horizon_own_shader_pack_is_written_once_and_left_alone_after() {
     assert_eq!(fs::read_to_string(dir.join("sky.wgsl")).unwrap(), "// mine");
     fs::remove_dir_all(&home).unwrap();
 }
+
+#[test]
+fn the_performance_profile_is_written_once_and_never_overrides_a_player() {
+    let home = scratch("optimized");
+    // A fresh instance: the profile fills in the engine's optimizations and the FPS overlay.
+    assert!(install_optimized_defaults(&home));
+    let graphics = fs::read_to_string(home.join("horizon-graphics.txt")).unwrap();
+    for line in [
+        "nativeOptimizer:true",
+        "caveCulling:true",
+        "entityCulling:true",
+        "lodDistance:16",
+        "overlay:fps",
+    ] {
+        assert!(graphics.contains(line), "missing {line} in {graphics:?}");
+    }
+    // Running again does nothing, so a player who turns the overlay off keeps it off.
+    set_line(&home.join("horizon-graphics.txt"), "overlay", "off").unwrap();
+    assert!(!install_optimized_defaults(&home));
+    assert!(fs::read_to_string(home.join("horizon-graphics.txt"))
+        .unwrap()
+        .contains("overlay:off"));
+    fs::remove_dir_all(&home).unwrap();
+}
