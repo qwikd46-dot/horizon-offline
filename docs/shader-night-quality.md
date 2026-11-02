@@ -140,6 +140,38 @@ night is an engine change, not a pack change.
 
 ## 7. Fixes 1-10 implemented here
 
-See the pack `crates/horizon-shader-api/packs/horizon_complementary` (version 1.3.0). The engine-side
+See the pack `crates/horizon-shader-api/packs/horizon_complementary` (version 1.4.0). The engine-side
 list (11-17) is written up in `docs/shader-night-quality-engine.md` for the optimization-mod note and
 an upstream PR; it is not silently dropped.
+
+## 1.4.0: what the in-game screenshots showed
+
+Seven 1920x1080 captures (`SHADER OVERVIEW/`) showed three faults, all in the pack, not the engine.
+
+- **Water looked painted on.** `wave_normal` summed three sines on fixed directions and frequencies,
+  so the crests settled into a repeating grid, and it only perturbed the *normal*, never the albedo,
+  so the effect read as a decal over the water texture. The body was also `mix(lit * 0.4, tinted,
+  0.75)` — a flat tinted colour, not the texture — and the Fresnel was `pow(1 - N.V, 5)`, which is
+  almost 1 at the shallow angle you look at water, so the reflection swamped everything. The moon
+  glint at 220 power plus two `pow` terms made the whole sheet glow.
+- **Blocks looked like they were moving.** The first post pass is SSAO (`post/shadows.wgsl`), at world
+  resolution, on every pixel. Its radius was `ao_radius / dist_cam * 0.4` in **UV**, which is not
+  clamped: a surface a metre from the eye got a radius of several hundred texels, and the radius
+  changed per pixel, so the occlusion pattern swam. There was no depth bias, so on a flat face the
+  `sd > depth` test flipped per tap, and the strength (0.55) with a 1.3-block radius darkened the
+  whole scene with distance. A depth-only SSAO also has no surface normal, so it cannot tell a real
+  occluder from a coplanar tap.
+- **Too much fog.** The material haze started at `max(fog_start, fog_end * 0.62)` — well into the
+  middle distance — and the sky haze covered `abs(d.y) < 0.12`.
+
+The fixes are all in the pack: a coherent wave sum with a dielectric Fresnel (F0 = 0.02), a
+distance fade on the waves, the reflection and the glint, and the water body driven by the texture
+again; an SSAO with a **clamped screen radius**, a depth bias and a gentle strength; and fog moved to
+the last 12% before the far plane with a thin sky band.
+
+**Sun and moon shadows are not in this release.** `StageKind` is `Sky | Material | Post`; no stage
+sees a shadow map, so the pack cannot cast real shadows. The "Shadows" pass is screen-space
+occlusion. A shadow stage (`StageKind::Shadow`, a shadow pass that renders the world from the light,
+and a shadow sampler in `MaterialInput`) is the engine feature that would let the pack do it — the
+engine already has the `shadowtex0`/`shadowcolor` plumbing in `gfx/pack_shadow.rs`, it is just not
+exposed to Horizon packs.

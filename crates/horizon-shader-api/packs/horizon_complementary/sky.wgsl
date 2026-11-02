@@ -2,11 +2,11 @@
 // sunrise and sunset, a deeper blue overhead, a moon with a soft glow at night, a cloud deck lit by
 // the moon and warm at dusk, and only a little haze where the sky meets the ground. Vanilla draws
 // the sun, moon and stars over this, so the glow is built to sit under them.
-override sun_glow: f32 = 1.0;
-override moon_glow_amount: f32 = 1.0;
+override sun_glow: f32 = 0.9;
+override moon_glow_amount: f32 = 0.8;
 override clouds: bool = true;
 override fog: bool = true;
-override fog_amount: f32 = 0.22;
+override fog_amount: f32 = 0.12;
 override warmth: f32 = 0.28;
 override performance_mode: bool = false;
 override cloud_quality: i32 = 2;
@@ -74,7 +74,8 @@ fn sky(input: SkyInput) -> vec4<f32> {
     // Haze: only a little, and only low, so the horizon softens without the whole view washing out.
     // It blends toward the sky's own colour so the horizon never goes flat.
     if fog {
-        let haze = (1.0 - smoothstep(0.0, 0.12, abs(d.y))) * (0.12 + 0.25 * frame.rain) * fog_amount;
+        // A thin band right at the horizon, no more: a wide haze flattened the sky.
+        let haze = (1.0 - smoothstep(0.0, 0.07, abs(d.y))) * (0.1 + 0.2 * frame.rain) * fog_amount;
         let tint = mix(frame.sky_color, mix(frame.fog_color, frame.fog_color * sun_tint(), min(low * day * clear, 1.0) * 0.7), 0.4);
         color = mix(color, tint, haze);
     }

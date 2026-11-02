@@ -4,7 +4,7 @@
 // count follows the "Night quality" preset (capped by the Bloom quality setting): bloom is the
 // heaviest pack pass, so it is the first to size to the GPU.
 override bloom: bool = true;
-override bloom_strength: f32 = 0.3;
+override bloom_strength: f32 = 0.22;
 override bloom_quality: i32 = 2;
 override night_quality: u32 = 1;
 override performance_mode: bool = false;
@@ -63,7 +63,7 @@ fn post(input: PostInput) -> vec4<f32> {
     var weight = 0.0;
     // Tight ring: weighted toward the centre.
     for (var i = 0; i < tight; i++) {
-        let r = sqrt((f32(i) + 0.5) / f32(tight)) * 2.6;
+        let r = sqrt((f32(i) + 0.5) / f32(tight)) * 2.2;
         let a = f32(i) * golden;
         let w = 1.0 - f32(i) / f32(tight + 4);
         sum += bright(input.uv + vec2<f32>(cos(a), sin(a)) * r * texel) * w;
@@ -71,7 +71,7 @@ fn post(input: PostInput) -> vec4<f32> {
     }
     // Wide ring: a softer halo over the tight one. Skipped when `wide` is 0.
     for (var i = 0; i < wide; i++) {
-        let r = 3.0 + sqrt((f32(i) + 0.5) / f32(max(wide, 1))) * 4.0;
+        let r = 2.6 + sqrt((f32(i) + 0.5) / f32(max(wide, 1))) * 3.4;
         let a = f32(i) * golden + 1.3;
         let w = 0.8 - f32(i) / (f32(max(wide, 1)) * 1.6);
         sum += bright(input.uv + vec2<f32>(cos(a), sin(a)) * r * texel) * w;
