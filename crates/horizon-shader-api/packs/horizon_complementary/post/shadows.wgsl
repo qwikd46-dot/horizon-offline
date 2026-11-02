@@ -1,10 +1,13 @@
-// Screen-space ambient occlusion and contact shadows. The engine has neither, so this adds the
-// dark seam where a wall meets the ground and the soft shade under objects, from the depth already
-// in the picture: a few taps, no extra geometry pass. The first post pass, so bloom and the grade
-// see the shaded picture.
+// Screen-space ambient occlusion and contact shadows. The engine has neither, so this adds the dark
+// seam where a wall meets the ground and the soft shade under objects, from the depth already in the
+// picture: a few taps, no extra geometry pass. The first post pass, so bloom and the grade see the
+// shaded picture. The tap count follows the "Night quality" preset (capped by the Shadows quality
+// setting), and the far half of the view (where the occlusion is invisible) is skipped before any tap.
 override shadows: bool = true;
 override ao_strength: f32 = 0.55;
 override ao_radius: f32 = 1.3;
+override ao_quality: i32 = 2;
+override night_quality: u32 = 1;
 override performance_mode: bool = false;
 
 fn post(input: PostInput) -> vec4<f32> {
@@ -14,9 +17,36 @@ fn post(input: PostInput) -> vec4<f32> {
     }
     let p = view_position(input.uv, input.depth);
     let dist_cam = max(length(p), 0.5);
+    // Past the far half of the view a world-space radius is sub-pixel: the taps cost and change
+    // nothing. Skip them.
+    if dist_cam > frame.far * 0.5 {
+        return input.color;
+    }
+    var taps = 10;
+    if ao_quality <= 0 {
+        taps = 4;
+    } else if ao_quality == 1 {
+        taps = 6;
+    } else if ao_quality >= 3 {
+        taps = 16;
+    }
+    // The Night quality preset caps the taps.
+    var cap = 4;
+    if night_quality >= 1u {
+        cap = 6;
+    }
+    if night_quality >= 2u {
+        cap = 10;
+    }
+    if night_quality >= 3u {
+        cap = 16;
+    }
+    taps = min(taps, cap);
+    if performance_mode {
+        taps = 4;
+    }
     // A world-space radius, as a fraction of the screen, shrinks with distance from the eye.
     let uv_radius = ao_radius / dist_cam * 0.4;
-    let taps = select(10, 5, performance_mode);
     let golden = 2.3999632;
     var occ = 0.0;
     for (var i = 0; i < taps; i++) {

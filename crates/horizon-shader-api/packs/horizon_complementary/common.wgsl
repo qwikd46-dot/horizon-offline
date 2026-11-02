@@ -14,14 +14,25 @@ fn daylight() -> f32 {
     return select(0.0, smoothstep(-0.08, 0.14, frame.sun_direction.y), frame.dimension == 0);
 }
 
-// 1 at night, 0 by day.
+// 1 at night, 0 by day. The ramp is wide so dusk and dawn blend, never pop.
 fn night() -> f32 {
-    return select(0.0, 1.0 - smoothstep(-0.22, 0.04, frame.sun_direction.y), frame.dimension == 0);
+    return select(0.0, 1.0 - smoothstep(-0.24, 0.02, frame.sun_direction.y), frame.dimension == 0);
 }
 
 // 1 with the sun on the horizon, 0 a third of the way up: sunrise and sunset.
 fn sun_low() -> f32 {
     return 1.0 - smoothstep(0.0, 0.32, abs(frame.sun_direction.y));
+}
+
+// 1 near sunrise or sunset and 0 a quarter of the way up, on both sides: the golden hour, whether
+// the sun is rising or setting.
+fn twilight() -> f32 {
+    return select(0.0, smoothstep(0.30, 0.02, abs(frame.sun_direction.y)), frame.dimension == 0);
+}
+
+// How high the moon is: 0 below the horizon, 1 well up. The moonlight follows it.
+fn moon_up() -> f32 {
+    return select(0.0, smoothstep(-0.06, 0.22, frame.moon_direction.y), frame.dimension == 0);
 }
 
 // The sun's own tint: white high up, amber to red as it sets, dimmed by rain.
@@ -35,6 +46,19 @@ fn sun_tint() -> vec3<f32> {
 fn sun_color() -> vec3<f32> {
     let low = sun_low();
     return mix(vec3<f32>(1.0, 0.97, 0.9), vec3<f32>(1.0, 0.55, 0.28), low * low);
+}
+
+// The moon's colour: a cool blue-white, what the world takes on a clear night.
+fn moon_color() -> vec3<f32> {
+    return vec3<f32>(0.45, 0.55, 0.85);
+}
+
+// The night sky's ambient: a deep blue, stronger overhead than from below, with a faint warm ground
+// bounce so shadows are not flat. `upness` is the surface normal's y (-1 down, 1 up).
+fn night_ambient(upness: f32) -> vec3<f32> {
+    let sky = vec3<f32>(0.16, 0.24, 0.5);
+    let ground = vec3<f32>(0.09, 0.08, 0.1);
+    return mix(ground, sky, clamp(upness * 0.5 + 0.5, 0.0, 1.0));
 }
 
 fn hash21(p: vec2<f32>) -> f32 {
@@ -54,7 +78,7 @@ fn noise2(p: vec2<f32>) -> f32 {
 }
 
 // How much cloud covers a view ray: a drifting layer on a plane overhead, none below the horizon.
-// `detail` adds a finer, rotated octave (what performance mode drops).
+// `detail` adds a finer, rotated octave (what the lower quality presets drop).
 fn cloud_cover(d: vec3<f32>, detail: bool) -> f32 {
     let up = max(d.y, 0.05);
     let wind = 1.0 + frame.rain * 2.5;
@@ -89,4 +113,13 @@ fn specular(n: vec3<f32>, view: vec3<f32>, light: vec3<f32>, power: f32) -> f32 
 // Schlick's approximation of Fresnel: 0 facing the surface, 1 at a grazing angle.
 fn fresnel(view: vec3<f32>, n: vec3<f32>, power: f32) -> f32 {
     return pow(1.0 - max(dot(view, n), 0.0), power);
+}
+
+// The moon disc and its soft glow along a view ray: a small core, a wide halo, so it reads as a lit
+// moon under vanilla's sprite instead of a hard rectangle. `size` widens the core.
+fn moon_glow(toward: f32, size: f32) -> f32 {
+    let core = pow(toward, 900.0 / size) * 1.6;
+    let tight = pow(toward, 90.0 / size) * 0.5;
+    let halo = pow(toward, 12.0 / size) * 0.22 + pow(toward, 3.0 / size) * 0.05;
+    return core + tight + halo;
 }

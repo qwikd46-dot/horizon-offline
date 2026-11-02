@@ -1,18 +1,23 @@
 // The sky along each view ray: a bright sun with a wide glow, a sun-side horizon that reddens at
-// sunrise and sunset, a deeper blue overhead, a faint moon glow at night, a drifting cloud deck
-// and only a little haze where the sky meets the ground. Vanilla draws the sun, moon and stars
-// over this, so the glow is built to sit under them.
+// sunrise and sunset, a deeper blue overhead, a moon with a soft glow at night, a cloud deck lit by
+// the moon and warm at dusk, and only a little haze where the sky meets the ground. Vanilla draws
+// the sun, moon and stars over this, so the glow is built to sit under them.
 override sun_glow: f32 = 1.0;
+override moon_glow_amount: f32 = 1.0;
 override clouds: bool = true;
 override fog: bool = true;
-override fog_amount: f32 = 0.35;
+override fog_amount: f32 = 0.22;
 override warmth: f32 = 0.28;
 override performance_mode: bool = false;
+override cloud_quality: i32 = 2;
+override night_quality: u32 = 1;
 
 fn sky(input: SkyInput) -> vec4<f32> {
     let d = input.direction;
     let day = daylight();
     let low = sun_low();
+    let twi = twilight();
+    let n = night();
     let clear = 1.0 - frame.rain;
     var color = input.color.rgb;
 
@@ -36,23 +41,41 @@ fn sky(input: SkyInput) -> vec4<f32> {
     let zenith = smoothstep(0.05, 0.95, d.y);
     color = mix(color, color * vec3<f32>(0.66, 0.8, 1.16), zenith * day * 0.7);
 
-    // The moon: a small glow, brightest on a clear night.
+    // The moon: a small hot core and a wide soft halo, brightest on a clear night, so it reads as a
+    // lit moon under vanilla's sprite instead of a hard block.
     let toward_moon = max(dot(d, frame.moon_direction), 0.0);
-    color += vec3<f32>(0.06, 0.09, 0.16) * (pow(toward_moon, 120.0) * 1.2 + pow(toward_moon, 10.0) * 0.2)
-        * night() * clear;
+    color += moon_color() * moon_glow(toward_moon, 1.0) * n * clear * moon_glow_amount;
+
+    // A faint band of light around the moon's side of the sky, so night is not flat black.
+    color += moon_color() * pow(max(dot(normalize(vec3<f32>(d.x, 0.0, d.z) + vec3<f32>(1e-4)),
+        normalize(vec3<f32>(frame.moon_direction.x, 0.0, frame.moon_direction.z) + vec3<f32>(1e-4))), 0.0), 3.0)
+        * band * n * 0.05 * clear;
 
     if clouds {
-        let cover = cloud_cover(d, !performance_mode) * clear;
-        let base = mix(vec3<f32>(0.07, 0.09, 0.13), vec3<f32>(0.99, 0.98, 0.96), day);
-        let lit = mix(base, sun_color(), min(low * day * warmth * 2.6, 0.9));
-        // Clouds catch the sun's glow on their sunward side.
-        color = mix(color, lit * (0.6 + 0.4 * toward), cover * 0.9);
+        let detail = cloud_quality >= 2 && night_quality >= 1u;
+        // The cover fades out well above the horizon: the overhead-plane projection blows up as the
+        // ray flattens, which is what streaks down the sky at the horizon. Fading it first fixes
+        // that at the source.
+        let horizon = smoothstep(0.02, 0.24, d.y);
+        let cover = cloud_cover(d, detail && d.y > 0.12) * horizon * clear;
+        // Base cloud colour: near-black by night, white by day, with the moon's blue at night.
+        let base = mix(mix(vec3<f32>(0.05, 0.07, 0.12), vec3<f32>(0.99, 0.98, 0.96), day), moon_color() * 0.35, n * 0.7);
+        // Dusk and dawn: the cloud undersides glow warm toward the sun.
+        let dusk = mix(base, sun_color() * 0.9, twi * 0.7);
+        // The sun (or, at night, the moon) lights the cloud's near side.
+        let lit_by = select(frame.moon_direction, frame.sun_direction, day > 0.5);
+        let toward_lit = max(dot(d, lit_by), 0.0);
+        let rim = pow(toward_lit, 3.0);
+        let light_col = mix(sun_color(), moon_color() * 0.7, n);
+        let lit = mix(dusk, light_col, clamp((low * day * warmth * 2.6 + n * 0.5) * (0.4 + 0.6 * toward_lit), 0.0, 0.9));
+        color = mix(color, lit * (0.55 + 0.45 * toward_lit) + light_col * rim * 0.25, cover * 0.9);
     }
 
     // Haze: only a little, and only low, so the horizon softens without the whole view washing out.
+    // It blends toward the sky's own colour so the horizon never goes flat.
     if fog {
-        let haze = (1.0 - smoothstep(0.0, 0.14, abs(d.y))) * (0.18 + 0.3 * frame.rain) * fog_amount;
-        let tint = mix(frame.fog_color, frame.fog_color * sun_tint(), min(low * day * clear, 1.0) * 0.7);
+        let haze = (1.0 - smoothstep(0.0, 0.12, abs(d.y))) * (0.12 + 0.25 * frame.rain) * fog_amount;
+        let tint = mix(frame.sky_color, mix(frame.fog_color, frame.fog_color * sun_tint(), min(low * day * clear, 1.0) * 0.7), 0.4);
         color = mix(color, tint, haze);
     }
 
