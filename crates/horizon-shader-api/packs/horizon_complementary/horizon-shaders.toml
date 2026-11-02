@@ -1,9 +1,9 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "1.2.0"
+version = "1.3.0"
 api = "0.1"
-description = "A complementary/BSL-inspired look tuned for Horizon: a glowing sun and a reddened sunrise horizon, moving water with a sun highlight and a sky reflection, screen-space shadows, drifting clouds, a soft bloom and a filmic grade, with toggles and a performance mode."
+description = "A complementary/BSL-inspired look tuned for Horizon: a glowing sun, a moon that lights the world with soft shade and a reddened sunrise horizon, real water with a moon glint and a sky reflection, screen-space shadows, moon-lit clouds, a soft bloom and a filmic night grade, with quality presets and a commented settings file."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
 shared = ["common.wgsl"]
@@ -27,6 +27,14 @@ name = "Bloom"
 [[post]]
 file = "post/grade.wgsl"
 name = "Tonemap"
+
+[[options]]
+id = "night_quality"
+name = "Night quality"
+description = "One preset for dusk, dawn and night: it caps the Shadows, Bloom and Cloud quality taps at once. Low = 4 occlusion taps, one bloom ring, one cloud octave. Medium = 6 / two rings / two octaves. High = 10 / two rings / two octaves. Ultra = 16 / two rings / two octaves. The individual settings can go lower, never higher."
+type = "choice"
+values = ["Low", "Medium", "High", "Ultra"]
+default = "Medium"
 
 [[options]]
 id = "shadows"
@@ -56,11 +64,29 @@ max = 3.0
 step = 0.05
 
 [[options]]
+id = "ao_quality"
+name = "Shadows quality"
+description = "Occlusion taps: 0 = 4 taps (fastest), 1 = 6, 2 = 10 (default), 3 = 16 (softest, slowest). The far half of the view is always skipped."
+type = "int"
+default = 2
+min = 0
+max = 3
+
+[[options]]
 id = "clouds"
 name = "Clouds"
 description = "Enables the atmospheric cloud layer. Off preserves a cleaner, faster look."
 type = "bool"
 default = true
+
+[[options]]
+id = "cloud_quality"
+name = "Cloud quality"
+description = "0 = one noise octave (fastest), 2 = two octaves (default). Higher quality keeps the cloud edges crisper."
+type = "int"
+default = 2
+min = 0
+max = 2
 
 [[options]]
 id = "fog"
@@ -74,7 +100,7 @@ id = "fog_amount"
 name = "Fog amount"
 description = "How strongly the little remaining haze tints the distance."
 type = "float"
-default = 0.35
+default = 0.22
 min = 0.0
 max = 1.0
 step = 0.01
@@ -90,9 +116,69 @@ max = 2.0
 step = 0.05
 
 [[options]]
+id = "moon_glow_amount"
+name = "Moon glow"
+description = "The brightness of the moon's soft halo in the sky."
+type = "float"
+default = 1.0
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "moonlight"
+name = "Moonlight on the world"
+description = "How strongly the moon lights terrain at night: canopy, trunks and hills read by its cool blue light. The pack cannot cast a shadow map, so this is a hemispheric light on what the sky reaches; the shadows pass adds the local shade."
+type = "float"
+default = 0.55
+min = 0.0
+max = 1.5
+step = 0.01
+
+[[options]]
+id = "night_boost"
+name = "Night brightness"
+description = "A subtle lift in dark scenes while preserving a moody look."
+type = "float"
+default = 0.16
+min = 0.0
+max = 0.6
+step = 0.01
+
+[[options]]
+id = "night_exposure"
+name = "Night exposure"
+description = "How much the whole picture lifts as the sun sets. Follows a smoothstep, so it never flickers."
+type = "float"
+default = 0.22
+min = 0.0
+max = 0.6
+step = 0.01
+
+[[options]]
+id = "shadow_lift"
+name = "Night shadow lift"
+description = "A blue-tinted lift of the darkest tones at night, so albedo and detail survive instead of crushing to black."
+type = "float"
+default = 0.05
+min = 0.0
+max = 0.2
+step = 0.005
+
+[[options]]
+id = "night_desaturate"
+name = "Night vision desaturation"
+description = "How much dark regions desaturate and shift blue at night, like human night vision. Greens stay readable."
+type = "float"
+default = 0.3
+min = 0.0
+max = 1.0
+step = 0.01
+
+[[options]]
 id = "water"
 name = "Water effects"
-description = "Waves, the sun highlight and the sky reflection on water."
+description = "Waves, the sun or moon highlight and the sky reflection on water."
 type = "bool"
 default = true
 
@@ -108,8 +194,8 @@ step = 0.02
 
 [[options]]
 id = "water_specular"
-name = "Water sun glint"
-description = "How bright the sun's highlight is on water."
+name = "Water sun and moon glint"
+description = "How bright the sun's or moon's highlight is on water."
 type = "float"
 default = 0.9
 min = 0.0
@@ -142,6 +228,15 @@ default = 0.3
 min = 0.0
 max = 1.0
 step = 0.01
+
+[[options]]
+id = "bloom_quality"
+name = "Bloom quality"
+description = "0 = 8 taps, one ring (fastest), 1 = two rings, 2 = default, 3 = 32 taps (softest, slowest). Bloom is the heaviest pass, so this is the first to lower on a weak GPU."
+type = "int"
+default = 2
+min = 0
+max = 3
 
 [[options]]
 id = "vignette"
@@ -198,19 +293,9 @@ max = 0.8
 step = 0.01
 
 [[options]]
-id = "night_boost"
-name = "Night brightness"
-description = "A subtle lift in dark scenes while preserving a moody look."
-type = "float"
-default = 0.18
-min = 0.0
-max = 0.6
-step = 0.01
-
-[[options]]
 id = "performance_mode"
 name = "Performance mode"
-description = "Half the occlusion taps, one cloud octave and one bloom ring: softer shadows, clouds and bloom for lower-end GPUs."
+description = "The lowest quality everywhere at once: 4 occlusion taps, one bloom ring, one cloud octave. Use it on a weak GPU instead of lowering each setting."
 type = "bool"
 default = false
 

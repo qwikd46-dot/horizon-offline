@@ -1,0 +1,59 @@
+# Horizon Complementary 1.3.0 - night, dusk and dawn
+#
+# This file documents every option. The game keeps your real values in options.txt; set them on
+# Options > Horizon Settings > Shader Packs > Horizon Complementary. Nothing here is read by the
+# game; it is a reference and a copy-paste list.
+#
+# One preset first. "Night quality" caps the Shadows, Bloom and Cloud quality taps at once, so a
+# weak GPU only needs this one line changed. The individual settings below can go lower, never
+# higher than the preset.
+#
+#   night_quality = "Low"      # 4 occlusion taps, one bloom ring, one cloud octave  (weakest GPU)
+#   night_quality = "Medium"   # 6 taps, two bloom rings, two cloud octaves          (default)
+#   night_quality = "High"     # 10 taps, two bloom rings, two cloud octaves
+#   night_quality = "Ultra"    # 16 taps, two bloom rings, two cloud octaves         (best GPU)
+
+# --- Night light (the headline) ---
+moonlight = 0.55          # how strongly the moon lights the world at night (0..1.5)
+night_boost = 0.16        # a subtle artistic lift in dark scenes (0..0.6)
+night_exposure = 0.22     # how much the whole picture lifts as the sun sets (0..0.6)
+shadow_lift = 0.05        # blue-tinted lift of the darkest tones, so detail survives (0..0.2)
+night_desaturate = 0.30   # how much dark regions desaturate and shift blue (0..1)
+
+# --- Shadows (screen-space ambient occlusion) ---
+shadows = true            # the soft shade where surfaces meet and under objects
+ao_strength = 0.55        # how dark it gets (0..1)
+ao_radius = 1.3           # how far it reaches, in blocks (0.5..3)
+ao_quality = 2            # 0=4 taps, 1=6, 2=10 (default), 3=16 (capped by night_quality)
+
+# --- Sky ---
+sun_glow = 1.0            # the sun's halo (0..2)
+moon_glow_amount = 1.0    # the moon's soft halo (0..2)
+clouds = true             # the atmospheric cloud layer
+cloud_quality = 2         # 0 = one noise octave (fastest), 2 = two octaves (capped by night_quality)
+
+# --- Water ---
+water = true              # waves, the sun/moon glint and the sky reflection
+water_waves = 0.5         # how strong the moving surface is (0..1)
+water_specular = 0.9      # the sun/moon glint (0..2)
+water_reflect = 0.5       # the sky reflection at grazing angles (0..1)
+
+# --- Bloom ---
+bloom = true
+bloom_strength = 0.3      # how far it spreads (0..1)
+bloom_quality = 2         # 0=8 taps one ring, 1=two rings, 2=default, 3=32 taps (capped by night_quality)
+
+# --- Grade ---
+exposure = 1.05
+filmic = true             # the ACES filmic curve
+contrast = 1.08
+saturation = 1.18
+warmth = 0.28             # the golden sunrise/sunset tint
+vignette = false
+
+# --- Fog ---
+fog = true
+fog_amount = 0.22         # only a little haze, and only near the far plane
+
+# --- One switch for a weak GPU ---
+performance_mode = false  # the lowest quality everywhere at once
