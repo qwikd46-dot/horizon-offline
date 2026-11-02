@@ -2749,6 +2749,7 @@ dependencies = [
  "horizon-port-pack",
  "horizon-prepare",
  "horizon-release-sign",
+ "horizon-shader-api",
  "horizon-telemetry",
  "horizon-theme",
  "horizon-world",

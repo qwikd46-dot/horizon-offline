@@ -13,7 +13,7 @@ Horizon's own format.
 | Authoring tool | `horizon-shader` (same crate) | `new`, `check`, `pack` |
 | Templates | `crates/horizon-shader-api/templates/` | post, sky, material |
 | Example pack | `crates/horizon-shader-api/packs/golden_hour` | a warm sky and two post passes |
-| Built-in pack | `crates/horizon-shader-api/packs/horizon_complementary` | Horizon Complementary: sky, material, bloom, grade; written into `shaderpacks/` on first run |
+| Built-in pack | `crates/horizon-shader-api/packs/horizon_complementary` | Horizon Complementary: sky, material, bloom, grade; written into `shaderpacks/` on first run and by the launcher before Play |
 | In the game: every stage | Options > Horizon Settings > Shader Packs | sky, material, post passes, hot reload |
 | The registry and the launcher | `shader` kind ([api/mod-index.md](api/mod-index.md)); the Mods page's Shader packs tab | checked, then installed into `shaderpacks/` |
 
@@ -56,8 +56,10 @@ and the pack is checked and rebuilt in place ("Shader pack ... reloaded"); if th
 where and the last good version keeps drawing. All three stages run.
 
 Horizon ships one pack, **Horizon Complementary** (`crates/horizon-shader-api/packs/horizon_complementary`): the
-list writes it into `shaderpacks/` when the folder is missing, so it is there without downloading anything. Edit it
-or delete it and it stays that way; it is an ordinary pack, not a special case of the loader.
+list writes it into `shaderpacks/` when the folder is missing, and the launcher writes it there before Play as well
+(`launcher/src/packs.rs`, `install_builtin`), so it is there without downloading anything whether or not the installed
+game build writes it itself. Edit it or delete it and it stays that way; it is an ordinary pack, not a special case of
+the loader.
 
 ## A pack
 
