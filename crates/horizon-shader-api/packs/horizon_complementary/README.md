@@ -6,7 +6,7 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-Dusk, dawn and night are the focus; 1.5.0 adds the water surface (waves, caustics, ripples). Every light, tint and quality value is a WGSL `override`
+Dusk, dawn and night are the focus; 1.6.0 adds the water surface (waves, caustics, rain and swimmer rings). Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
@@ -21,11 +21,11 @@ constant the GPU skips.
   Water keeps vanilla's water texture and adds a **four-wave field** (a long swell, two crossing chop
   trains and a fine ripple) that only tilts the **surface normal**, a **dielectric Fresnel** (about
   2% facing the surface, near total at a grazing angle) with a sky reflection, a **GGX** sun or moon
-  glint, and **caustics** — the sun's bright web shimmering on the water by day. It also reads the
-  **water ripples** a player or mob leaves behind (`Frame.water_disturb`, Horizon Extras > Water
-  ripples), each a decaying ring that pushes the normal out. The waves, the ripples, the reflection
-  and the glint all fade out with distance, so far water is a calm flat sheet. Only a little aerial
-  haze, and only in the last stretch before the far plane.
+  glint, and **caustics** — the sun's bright web shimmering on the water by day. **Rain** pricks the
+  surface with a grid of expanding rings, and a **swimmer** leaves rings around the camera, both
+  procedural so the pack needs nothing but the frame every build of the game gives it. The waves, the
+  rings, the reflection and the glint all fade out with distance, so far water is a calm flat sheet.
+  Only a little aerial haze, and only in the last stretch before the far plane.
 - **Shadows** (`post/shadows.wgsl`): screen-space ambient occlusion and contact shadows from the
   depth already in the picture (the engine has none of its own): the dark seam where surfaces meet
   and the soft shade under objects. The taps are taken at a small, **clamped screen radius** with a
