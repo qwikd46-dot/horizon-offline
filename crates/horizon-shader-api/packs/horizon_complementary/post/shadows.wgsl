@@ -11,15 +11,15 @@ override night_quality: u32 = 1;
 override performance_mode: bool = false;
 
 fn post(input: PostInput) -> vec4<f32> {
-    // The sky has no surface to shade.
-    if !shadows || input.depth >= 1.0 {
+    // The sky has no surface to shade. Depth is reversed: the sky and the far plane are 0.
+    if !shadows || input.depth <= 0.0 {
         return input.color;
     }
     let p = view_position(input.uv, input.depth);
     let dist_cam = max(length(p), 0.5);
-    // Past the far half of the view a world-space radius is sub-pixel: the taps cost and change
+    // Past half the render distance a world-space radius is sub-pixel: the taps cost and change
     // nothing. Skip them.
-    if dist_cam > frame.far * 0.5 {
+    if dist_cam > frame.render_distance * 0.5 {
         return input.color;
     }
     var taps = 10;
