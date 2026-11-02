@@ -7,10 +7,6 @@ override fog: bool = true;
 override fog_amount: f32 = 0.1;
 override night_boost: f32 = 0.16;
 override moonlight: f32 = 0.55;
-override water: bool = true;
-override water_waves: f32 = 0.5;
-override water_specular: f32 = 0.6;
-override water_reflect: f32 = 0.5;
 
 fn material(input: MaterialInput) -> Surface {
     let block = input.light.x;
@@ -49,19 +45,20 @@ fn material(input: MaterialInput) -> Surface {
     }
 
     // Water and ice: the flat top face of a translucent block in the open sky. Waves only tilt the
-    // normal (the albedo keeps vanilla's water texture), and the wave, the reflection and the glint
-    // all fade out with distance, so far water is a calm flat sheet instead of a shimmering pattern.
+    // normal (the albedo keeps vanilla's water texture), and the wave, the reflection, the glint and
+    // the ripples all fade out with distance, so far water is a calm flat sheet instead of a
+    // shimmering pattern.
     let is_water = input.translucent && sky > 0.8 && block < 0.25 && frame.dimension == 0;
     if water && is_water {
+        let dist = length(input.position);
         let view = -normalize(input.position + vec3<f32>(0.0, 0.001, 0.0));
-        // Wave detail is only worth its cost up close; past ~48 blocks the surface is flat.
-        let near = 1.0 - smoothstep(28.0, 64.0, length(input.position));
-        let nrm = wave_normal(input.position.xz, water_waves * near * 0.7, 0.32, 0.5);
+        // Wave and ripple detail is only worth its cost up close; past ~64 blocks the surface is flat.
+        let near = 1.0 - smoothstep(28.0, 64.0, dist);
+        var nrm = wave_normal(input.position.xz, water_waves * near * 0.7, 0.32, 0.5);
+        nrm = normalize(nrm + water_ripples(input.position.xz, dist));
         let sun_high = max(frame.sun_direction.y, 0.0);
         let clear = 1.0 - frame.rain;
 
-        // The water body: vanilla's water texture, tinted a touch toward the sky, so it stays water
-        // and never turns into a flat painted colour.
         var water_lit = lit * 0.85;
 
         // Fresnel at water's index: about 2% facing the surface, near total at a grazing angle. This
@@ -69,17 +66,22 @@ fn material(input: MaterialInput) -> Surface {
         let f0 = 0.02;
         let fres = clamp(f0 + (1.0 - f0) * pow(1.0 - max(dot(view, nrm), 0.0), 5.0), 0.0, 1.0);
         let reflected_sky = mix(frame.sky_color, frame.sky_color * 1.15, fres);
-        // The moon on the water: one soft broad highlight, broken up by the wave normal, dimmed at
-        // range. The 220-power term was a hard sparkle that made the whole sheet glow.
+
+        // The moon on the water: a GGX glint plus a soft broad sheen, broken up by the wave normal,
+        // dimmed at range.
         let to_moon = max(dot(nrm, frame.moon_direction), 0.0);
-        let moon_glint = (specular(nrm, view, frame.moon_direction, 90.0) * 0.5 + pow(to_moon, 8.0) * 0.18)
+        let moon_glint = (ggx_specular(nrm, view, frame.moon_direction, 0.12) * 0.5 + pow(to_moon, 8.0) * 0.18)
             * moon_color() * moon_up() * n * clear * water_specular * near;
         let reflected = (reflected_sky * (1.0 - n) + moon_color() * 0.22 * n) * water_reflect * near + moon_glint;
         water_lit = mix(water_lit, water_lit * 0.35 + reflected, fres);
 
-        // The sun's own glint by day, also faded at range.
-        water_lit += specular(nrm, view, frame.sun_direction, 80.0)
+        // The sun's own glint by day, a touch tighter than the moon's, also faded at range.
+        water_lit += ggx_specular(nrm, view, frame.sun_direction, 0.09)
             * sun_color() * daylight() * clear * water_specular * sun_high * near * 0.8;
+
+        // Caustics: the sun's web shimmering on the water, only in daylight and only up close.
+        water_lit += sun_color() * (caustic_pattern(input.position.xz * 1.6, frame.time) * water_caustics
+            * daylight() * clear * sun_high * near * 0.12);
 
         // A faint shore sparkle only, and only up close.
         water_lit += vec3<f32>(0.4, 0.5, 0.65) * pow(to_moon, 3.0) * moon_up() * n * 0.025 * near;

@@ -1,12 +1,12 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "1.4.0"
+version = "1.5.0"
 api = "0.1"
 description = "A complementary/BSL-inspired look tuned for Horizon: a glowing sun, a moon that lights the world with soft shade and a reddened sunrise horizon, real water with a moon glint and a sky reflection, screen-space shadows, moon-lit clouds, a soft bloom and a filmic night grade, with quality presets and a commented settings file."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
-shared = ["common.wgsl"]
+shared = ["common.wgsl", "water.wgsl"]
 
 [sky]
 file = "sky.wgsl"
@@ -178,7 +178,7 @@ step = 0.01
 [[options]]
 id = "water"
 name = "Water effects"
-description = "Waves, the sun or moon highlight and the sky reflection on water."
+description = "Waves, the sun or moon highlight, caustics, the sky reflection and player or mob ripples on water."
 type = "bool"
 default = true
 
@@ -210,6 +210,26 @@ type = "float"
 default = 0.5
 min = 0.0
 max = 1.0
+step = 0.02
+
+[[options]]
+id = "water_caustics"
+name = "Water caustics"
+description = "The sun's bright web shimmering on the water in daylight, up close only."
+type = "float"
+default = 0.5
+min = 0.0
+max = 1.0
+step = 0.02
+
+[[options]]
+id = "water_disturb_strength"
+name = "Water ripples"
+description = "How strongly a player or mob moving in water ripples the surface. Needs Extras > Water ripples on. 0 turns them off."
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.5
 step = 0.02
 
 [[options]]

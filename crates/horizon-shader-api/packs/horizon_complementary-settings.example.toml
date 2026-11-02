@@ -33,10 +33,12 @@ clouds = true             # the atmospheric cloud layer
 cloud_quality = 2         # 0 = one noise octave (fastest), 2 = two octaves (capped by night_quality)
 
 # --- Water ---
-water = true              # waves, the sun/moon glint and the sky reflection
+water = true              # waves, the sun/moon glint, caustics, reflection and ripples
 water_waves = 0.5         # how strong the moving surface is (0..1)
 water_specular = 0.6      # the sun/moon glint (0..2); lower is calmer
 water_reflect = 0.5       # the sky reflection at grazing angles (0..1)
+water_caustics = 0.5      # the sun's web on the water in daylight (0..1)
+water_disturb_strength = 0.6  # player/mob ripples (0..1.5); needs Extras > Water ripples
 
 # --- Bloom ---
 bloom = true

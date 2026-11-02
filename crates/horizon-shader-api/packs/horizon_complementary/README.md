@@ -6,7 +6,7 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-Dusk, dawn and night are the focus of 1.4.0. Every light, tint and quality value is a WGSL `override`
+Dusk, dawn and night are the focus; 1.5.0 adds the water surface (waves, caustics, ripples). Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
@@ -18,11 +18,14 @@ constant the GPU skips.
 - **Material** (`material.wgsl`): vanilla's lightmap with torch light pulled toward amber, a cool
   **moonlight** that lights canopy, trunks and hills on a clear night, a blue night ambient with a
   ground bounce so shadows are deep blue, not black, and a weak warm light from the low sun at dusk.
-  Water keeps vanilla's water texture and adds a slow swell and two crossing chop waves that only
-  tilt the **surface normal**, a **dielectric Fresnel** (about 2% facing the surface, near total at a
-  grazing angle) with a sky reflection, and one soft sun or moon glint. The waves, the reflection and
-  the glint all fade out with distance, so far water is a calm flat sheet. Only a little aerial haze,
-  and only in the last stretch before the far plane.
+  Water keeps vanilla's water texture and adds a **four-wave field** (a long swell, two crossing chop
+  trains and a fine ripple) that only tilts the **surface normal**, a **dielectric Fresnel** (about
+  2% facing the surface, near total at a grazing angle) with a sky reflection, a **GGX** sun or moon
+  glint, and **caustics** — the sun's bright web shimmering on the water by day. It also reads the
+  **water ripples** a player or mob leaves behind (`Frame.water_disturb`, Horizon Extras > Water
+  ripples), each a decaying ring that pushes the normal out. The waves, the ripples, the reflection
+  and the glint all fade out with distance, so far water is a calm flat sheet. Only a little aerial
+  haze, and only in the last stretch before the far plane.
 - **Shadows** (`post/shadows.wgsl`): screen-space ambient occlusion and contact shadows from the
   depth already in the picture (the engine has none of its own): the dark seam where surfaces meet
   and the soft shade under objects. The taps are taken at a small, **clamped screen radius** with a
@@ -36,7 +39,7 @@ constant the GPU skips.
   readable without crushing to black, human **night-vision desaturation** (dark regions cool and
   desaturate, greens stay readable), mid-tone contrast, saturation and a vignette.
 
-Thirty options on Options > Horizon Settings > Shader Packs. Start with **Night quality**
+Thirty-plus options on Options > Horizon Settings > Shader Packs. Start with **Night quality**
 (Low/Medium/High/Ultra), which caps the Shadows, Bloom and Cloud quality taps at once; the individual
 settings can go lower, never higher. **Performance mode** is the lowest quality everywhere at once,
 for a weak GPU. A commented reference for every option is in

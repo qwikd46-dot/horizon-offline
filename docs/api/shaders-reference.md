@@ -134,6 +134,7 @@ The frame, as `frame` in every stage. Positions and directions are in world axes
 | `dimension` | `i32` | 388 | 0 the Overworld, -1 the Nether, 1 the End, 2 any other dimension. |
 | `frame_index` | `u32` | 392 | Frames drawn since the pack was loaded (wraps). |
 | `hide_gui` | `u32` | 396 | 1 while F1 hides the HUD, else 0. |
+| `water_disturb` | `array<vec4<f32>, 16>` | 400 | Horizon Extras' water disturbances (`water::select`): camera-relative xz position, ring radius in blocks and strength 0..1 (x, z, radius, strength) of each ripple, nearest first. Unused entries are all zero, which a pack's water stage skips, so there is no count field to keep the struct free of padding (a WGSL array needs 16-byte alignment). |
 
 ## Options
 
