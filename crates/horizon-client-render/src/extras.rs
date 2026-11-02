@@ -63,6 +63,8 @@ pub struct Extras {
     pub fullbright: bool,
     /// Held, dropped and burning light sources light their surroundings (`dynamic_light`).
     pub dynamic_lights: bool,
+    /// A player or mob in water pushes a ripple into the surface (`water`).
+    pub water_ripples: bool,
     pub zoom: bool,
     /// A vanilla key name (`key.keyboard.z`).
     pub zoom_key: String,
@@ -119,6 +121,7 @@ impl Default for Extras {
         Self {
             fullbright: false,
             dynamic_lights: false,
+            water_ripples: false,
             zoom: false,
             zoom_key: "key.keyboard.z".into(),
             zoom_level: 4,
@@ -173,6 +176,7 @@ impl Extras {
             match key.trim() {
                 "fullbright" => e.fullbright = flag(e.fullbright),
                 "dynamicLights" => e.dynamic_lights = flag(e.dynamic_lights),
+                "waterRipples" => e.water_ripples = flag(e.water_ripples),
                 "zoom" => e.zoom = flag(e.zoom),
                 "zoomKey" if value.starts_with("key.") => e.zoom_key = value.to_owned(),
                 "zoomLevel" => {
@@ -228,9 +232,10 @@ impl Extras {
     }
     pub fn serialize(&self) -> String {
         format!(
-            "fullbright:{}\ndynamicLights:{}\nzoom:{}\nzoomKey:{}\nzoomLevel:{}\nzoomSmooth:{}\nzoomSensitivity:{}\nfps:{}\nfpsCorner:{}\nfpsLows:{}\nkeystrokes:{}\nkeystrokesCorner:{}\nkeystrokesCps:{}\nmovedToMods:{}\nminimap:{}\nminimapCorner:{}\nminimapSize:{}\nminimapShape:{}\nminimapZoom:{}\nminimapRotate:{}\nautoReconnect:{}\nownNameTag:{}\nmouseTweaks:{}\nmouseTweaksWheel:{}\nsort:{}\nsortKey:{}\n{}:{}\nagentControl:{}\ndiscordPresence:{}\n",
+            "fullbright:{}\ndynamicLights:{}\nwaterRipples:{}\nzoom:{}\nzoomKey:{}\nzoomLevel:{}\nzoomSmooth:{}\nzoomSensitivity:{}\nfps:{}\nfpsCorner:{}\nfpsLows:{}\nkeystrokes:{}\nkeystrokesCorner:{}\nkeystrokesCps:{}\nmovedToMods:{}\nminimap:{}\nminimapCorner:{}\nminimapSize:{}\nminimapShape:{}\nminimapZoom:{}\nminimapRotate:{}\nautoReconnect:{}\nownNameTag:{}\nmouseTweaks:{}\nmouseTweaksWheel:{}\nsort:{}\nsortKey:{}\n{}:{}\nagentControl:{}\ndiscordPresence:{}\n",
             bool_text(self.fullbright),
             bool_text(self.dynamic_lights),
+            bool_text(self.water_ripples),
             bool_text(self.zoom),
             self.zoom_key,
             self.zoom_level,
@@ -382,6 +387,7 @@ impl Cps {
 pub enum Item {
     Fullbright,
     DynamicLights,
+    WaterRipples,
     OwnNameTag,
     AutoReconnect,
     MouseTweaks,
@@ -401,6 +407,7 @@ pub fn rows() -> Vec<Result<Item, &'static str>> {
         Err("Lighting"),
         Ok(Fullbright),
         Ok(DynamicLights),
+        Ok(WaterRipples),
         Err("Third person"),
         Ok(OwnNameTag),
         Err("Inventory"),
@@ -417,6 +424,7 @@ impl Item {
         match self {
             Item::Fullbright => "Fullbright",
             Item::DynamicLights => "Dynamic lights",
+            Item::WaterRipples => "Water ripples",
             Item::OwnNameTag => "Own name tag",
             Item::AutoReconnect => "Auto-reconnect",
             Item::MouseTweaks => "Mouse Tweaks controls",
@@ -434,8 +442,8 @@ impl Item {
         Some(match self {
             MouseTweaksWheel => MouseTweaks,
             SortKey => Sort,
-            Fullbright | DynamicLights | OwnNameTag | MouseTweaks | Sort | AutoReconnect | NoAi
-            | AgentControl | DiscordPresence => {
+            Fullbright | DynamicLights | WaterRipples | OwnNameTag | MouseTweaks | Sort
+            | AutoReconnect | NoAi | AgentControl | DiscordPresence => {
                 return None;
             }
         })
@@ -447,6 +455,10 @@ impl Item {
             Item::DynamicLights => {
                 "Torches and other light sources held, dropped or on fire light the blocks around them."
             }
+            Item::WaterRipples => {
+                "A player or mob moving in water pushes a ripple into the surface; a dropped item makes a small one. Needs a shader pack with water enabled."
+            }
+
             Item::OwnNameTag => {
                 "Shows your name above your head in third person, as other players see it. Hidden when the server hides your team's names or you're invisible."
             }
@@ -482,6 +494,7 @@ impl Item {
         match self {
             Item::Fullbright => Some(Cost::None),
             Item::DynamicLights => Some(Cost::Low),
+            Item::WaterRipples => Some(Cost::Low),
             Item::OwnNameTag | Item::AutoReconnect | Item::MouseTweaks | Item::Sort => {
                 Some(Cost::None)
             }
@@ -493,6 +506,7 @@ impl Item {
         Some(match self {
             Item::Fullbright => e.fullbright,
             Item::DynamicLights => e.dynamic_lights,
+            Item::WaterRipples => e.water_ripples,
             Item::OwnNameTag => e.own_name_tag,
             Item::AutoReconnect => e.auto_reconnect,
             Item::MouseTweaks => e.mouse_tweaks,
@@ -520,6 +534,7 @@ impl Item {
         match self {
             Item::Fullbright => e.fullbright = !e.fullbright,
             Item::DynamicLights => e.dynamic_lights = !e.dynamic_lights,
+            Item::WaterRipples => e.water_ripples = !e.water_ripples,
             Item::OwnNameTag => e.own_name_tag = !e.own_name_tag,
             Item::AutoReconnect => e.auto_reconnect = !e.auto_reconnect,
             Item::MouseTweaks => e.mouse_tweaks = !e.mouse_tweaks,

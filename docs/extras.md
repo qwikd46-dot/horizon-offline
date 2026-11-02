@@ -12,6 +12,7 @@ again restores vanilla's behaviour completely.
 | Settings, parsing and saving | `crates/horizon-client-render/src/extras.rs` |
 | FPS and click counters (for native mods) | `extras.rs` (pure logic, unit tested) |
 | Dynamic lights: item glow, nearest sources | `crates/horizon-client-render/src/dynamic_light.rs` (unit tested), `game/dynamic_lights.rs`, `terrain.wgsl` and `entity.wgsl` (`dynamic_block_light`) |
+| Water ripples: wakes around players and mobs | `crates/horizon-client-render/src/water.rs` (unit tested), `game/water_ripples.rs`, the pack's `water.wgsl` (`water_ripples`) |
 | HUD drawing (a native mod's minimap, corner stacking) | `crates/horizon-client/src/extras_hud.rs` |
 | Minimap colours, tiles and image (for the Minimap native mod) | `crates/horizon-client-render/src/minimap.rs` |
 | Reconnect policy and backoff | `crates/horizon-client/src/reconnect.rs` |
@@ -59,6 +60,18 @@ in Controls, and adding one would put a non-vanilla mapping into `options.txt`.
   lightmap as usual. The light doesn't stop at walls.
 - Off: nothing is gathered and the shaders' loop runs zero times (the count is 0), so it costs
   nothing measurable (numbers in the pull request, #814).
+
+### Water ripples (`waterRipples`, default off)
+- A player or mob moving in water pushes a ripple into the surface, and a dropped item makes a
+  small one. Not in vanilla; the idea follows real water shaders (the WebGPU water simulation,
+  jeantimex/webgpu-water) and the wakes games draw around swimmers.
+- Client-only, at render time: the fluid engine, chunk meshes, saves and other players never see
+  it. Each frame the game picks the 16 sources nearest the camera (within 96 blocks,
+  `water::select`) and uploads them into the pack's `Frame.water_disturb`; the pack's water stage
+  (Horizon Complementary) turns each into a decaying ring on the surface, tilting the wave normal
+  so a crest pushes out and a trough trails behind. Ripples fade out past ~56 blocks.
+- Needs a pack with water on (Horizon Complementary's Water effects). Off: nothing is gathered and
+  the pack's ripple loop finds every slot zero, so it costs nothing measurable.
 
 ### Moved to native mods
 

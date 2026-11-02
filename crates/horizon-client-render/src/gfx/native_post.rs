@@ -416,6 +416,13 @@ pub fn frame_inputs(frame: &Frame, size: [u32; 2], seconds: f32, index: u32) -> 
         },
         frame_index: index,
         hide_gui: u32::from(pack.hide_gui),
+        water_disturb: {
+            let mut out = [[0.0f32; 4]; 16];
+            for (to, from) in out.iter_mut().zip(frame.water_sources.iter()) {
+                *to = *from;
+            }
+            horizon_shader_api::inputs::WaterDisturb(out)
+        },
     }
 }
 

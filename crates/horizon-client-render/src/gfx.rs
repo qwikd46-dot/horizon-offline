@@ -292,6 +292,9 @@ pub struct Frame<'a> {
     pub weather_time: crate::weather::Time,
     /// Horizon Extras' dynamic lights, nearest first (`dynamic_light::select`); empty when off.
     pub dynamic_lights: &'a [[f32; 4]],
+    /// Horizon Extras' water disturbances this frame (`water::select`): camera-relative position and
+    /// radius, nearest first; empty when off. The pack's water stage turns each into a ripple.
+    pub water_sources: &'a [[f32; 4]],
     /// Cloud mesh inputs; geometry and GPU storage are retained by the renderer.
     pub clouds: Option<crate::clouds::Input<'a>>,
     /// Retained lightning bolts, drawn before the other additive entities.
