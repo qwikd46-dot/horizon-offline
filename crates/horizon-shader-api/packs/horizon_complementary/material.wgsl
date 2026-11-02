@@ -55,7 +55,10 @@ fn material(input: MaterialInput) -> Surface {
         // Wave and ripple detail is only worth its cost up close; past ~64 blocks the surface is flat.
         let near = 1.0 - smoothstep(28.0, 64.0, dist);
         var nrm = wave_normal(input.position.xz, water_waves * near * 0.7, 0.32, 0.5);
-        nrm = normalize(nrm + water_ripples(input.position.xz, dist));
+        // The rings only read fields every build of the game has, so the pack loads everywhere:
+        // the rain pricks the surface and a swimmer leaves rings around the camera, both up close.
+        nrm = normalize(nrm + rain_ripples(input.position.xz, frame.rain * water_ripples * near * 0.5));
+        nrm = normalize(nrm + swim_ripples(input.position.xz, water_ripples * near));
         let sun_high = max(frame.sun_direction.y, 0.0);
         let clear = 1.0 - frame.rain;
 

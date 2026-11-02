@@ -242,7 +242,6 @@ mod ui_control;
 mod vault;
 mod villagers;
 mod wandering_trader;
-mod water_ripples;
 mod win;
 mod wind;
 mod wither;
@@ -1645,7 +1644,6 @@ struct Game<'a> {
     dynamic_lights: Vec<[f32; 4]>,
     /// Horizon Extras' water disturbances this frame (`water.rs`): camera-relative position and
     /// radius of each ripple, nearest first. Empty when the extra is off.
-    water_sources: Vec<[f32; 4]>,
     luminance: Option<horizon_client::dynamic_light::Luminance>,
     /// Name tags drawn over everything (`RenderPipelines.TEXT_SEE_THROUGH`).
     see_through_vertices: Vec<Vertex>,
@@ -12534,10 +12532,8 @@ impl Game<'_> {
         let see_through = std::mem::take(&mut self.see_through_vertices);
         if title {
             self.dynamic_lights.clear();
-            self.water_sources.clear();
         } else {
             self.gather_dynamic_lights(camera, alpha);
-            self.gather_water_ripples(camera, alpha);
         }
         let pack_inputs = if title {
             Default::default()
@@ -12618,7 +12614,6 @@ impl Game<'_> {
             entity_spans: &entity_spans,
             glowing: &glowing,
             dynamic_lights: &self.dynamic_lights,
-            water_sources: &self.water_sources,
             lightning: horizon_client::gfx::lightning::Input {
                 bolts: &bolts,
                 uv: horizon_client::gfx::lightning::white_uv(&self.gui.atlas.font.white()),
@@ -14532,7 +14527,6 @@ impl<'a> Game<'a> {
             renderer: None,
             entity_vertices: Vec::new(),
             dynamic_lights: Vec::new(),
-            water_sources: Vec::new(),
             luminance: None,
             see_through_vertices: Vec::new(),
             entity_spans: Default::default(),
@@ -15695,7 +15689,6 @@ fn loading_frame(hud: &HudBatch) -> Frame<'_> {
         entity_spans: &[],
         glowing: &[],
         dynamic_lights: &[],
-        water_sources: &[],
         clouds: None,
         lightning: Default::default(),
         additive: &[],

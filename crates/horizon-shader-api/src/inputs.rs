@@ -51,16 +51,6 @@ wgsl_types! {
     [f32; 3] => "vec3<f32>",
     [f32; 4] => "vec4<f32>",
     [[f32; 4]; 4] => "mat4x4<f32>",
-    [[f32; 4]; 16] => "array<vec4<f32>, 16>",
-}
-
-/// The `water_disturb` array: 16-byte aligned so its WGSL `array<vec4<f32>, 16>` and this Rust
-/// struct share a layout (a bare `[[f32; 4]; 16]` would align to 4 and disagree with WGSL).
-#[repr(C, align(16))]
-#[derive(Clone, Copy, Debug, Default, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct WaterDisturb(pub [[f32; 4]; 16]);
-impl Wgsl for WaterDisturb {
-    const TYPE: &'static str = "array<vec4<f32>, 16>";
 }
 
 /// A uniform struct: the Rust type the renderer uploads, and its WGSL.
@@ -153,11 +143,6 @@ uniform! {
         frame_index: u32,
         /// 1 while F1 hides the HUD, else 0.
         hide_gui: u32,
-        /// Horizon Extras' water disturbances (`water::select`): camera-relative xz position,
-        /// ring radius in blocks and strength 0..1 (x, z, radius, strength) of each ripple, nearest
-        /// first. Unused entries are all zero, which a pack's water stage skips, so there is no
-        /// count field to keep the struct free of padding (a WGSL array needs 16-byte alignment).
-        water_disturb: WaterDisturb,
     }
 }
 
@@ -222,12 +207,77 @@ mod tests {
     #[test]
     fn frame_fields_carry_their_docs() {
         let wgsl = Frame::WGSL;
-        assert_eq!(wgsl.fields.len(), 29);
+        assert_eq!(wgsl.fields.len(), 28);
         assert!(wgsl.fields.iter().all(|f| !f.doc.trim().is_empty()));
-        assert_eq!(std::mem::size_of::<Frame>(), 4 * 64 + 25 * 16);
+        assert_eq!(std::mem::size_of::<Frame>(), 4 * 64 + 9 * 16);
         assert!(
             wgsl.wgsl()
                 .contains("    camera_position: vec3<f32>,\n    time: f32,\n")
+        );
+    }
+
+    /// The game a launcher ships is upstream's, so a pack only compiles if every field it reads
+    /// exists there. This fork's `Frame` must therefore be a prefix of upstream's (the fields in
+    /// the same order, no fork-only field): `water_disturb` was added here and read by the pack,
+    /// and the real game refused the whole pack with `invalid field accessor water_disturb`.
+    #[test]
+    fn the_frame_is_a_prefix_of_the_shipped_games() {
+        const SHIPPED: [&str; 49] = [
+            "view",
+            "projection",
+            "view_inverse",
+            "projection_inverse",
+            "camera_position",
+            "time",
+            "sun_direction",
+            "day_time",
+            "moon_direction",
+            "game_time",
+            "sky_color",
+            "rain",
+            "fog_color",
+            "thunder",
+            "resolution",
+            "eye_light",
+            "fog_start",
+            "fog_end",
+            "render_distance",
+            "far",
+            "night_vision",
+            "blindness",
+            "darkness",
+            "brightness",
+            "eye_in",
+            "dimension",
+            "frame_index",
+            "hide_gui",
+            "precipitation",
+            "temperature",
+            "downfall",
+            "wetness",
+            "previous_view_projection",
+            "camera_motion",
+            "delta_time",
+            "eye_light_smooth",
+            "in_water",
+            "in_lava",
+            "water_plane",
+            "has_reflection",
+            "reflection_resolution",
+            "mods",
+            "light_direction",
+            "has_shadow",
+            "shadow_view_proj",
+            "shadow_distance",
+            "shadow_distortion",
+            "shadow_resolution",
+            "shadow_center_texel",
+        ];
+        let ours: Vec<&str> = Frame::WGSL.fields.iter().map(|f| f.name).collect();
+        assert_eq!(
+            ours,
+            SHIPPED[..ours.len()],
+            "a pack reading a field the shipped game lacks is refused whole"
         );
     }
 }

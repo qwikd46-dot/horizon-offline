@@ -1,21 +1,24 @@
-// The water surface: a travelling-wave field, the caustics the sun casts through it, and the ripples
-// a player or mob leaves behind. Shared by the pack, so the material stage calls it and the sky and
-// post stages simply do not. Every wave is analytic (a few cosines), the ripples read the per-frame
-// `frame.water_disturb` list, and nothing here samples a texture, so a stage pays only for what it
-// calls.
+// The water surface: a travelling-wave field, the caustics the sun casts through it, the rings the
+// rain and a swimmer leave behind, and the specular helpers the material stage uses. Shared by the
+// pack, so the material stage calls it and the sky and post stages simply do not. Every wave is
+// analytic (a few cosines), the rings are procedural (a handful of hashes), and nothing here samples
+// a texture, so a stage pays only for what it calls.
 //
 // The reference for the wave field is the WebGPU water simulation (jeantimex/webgpu-water) and the
 // Gerstner-wave look real shaders use: a sum of directional waves whose lengths, directions and
 // speeds all differ, so crests drift instead of locking into a repeating grid. Horizon's material
 // stage is per fragment on an already-built block face, so the field shades the surface (its normal)
 // rather than displacing geometry; the geometry is vanilla's water block.
+//
+// The rings only read `frame.time`, `frame.rain`, `frame.camera_position` and `frame.eye_in`, all of
+// which every build of the game gives a pack, so the pack loads everywhere.
 
 override water: bool = true;
 override water_waves: f32 = 0.5;
 override water_specular: f32 = 0.6;
 override water_reflect: f32 = 0.5;
 override water_caustics: f32 = 0.5;
-override water_disturb_strength: f32 = 0.6;
+override water_ripples: f32 = 0.6;
 
 // A water surface normal from four travelling waves: a long swell, two crossing chop trains and one
 // fine ripple. Their directions, lengths and speeds all differ, so the crests drift; the gradient is
@@ -35,38 +38,64 @@ fn wave_normal(p: vec2<f32>, amplitude: f32, scale: f32, speed: f32) -> vec3<f32
     return normalize(vec3<f32>(-dx * amplitude, 1.0, -dz * amplitude));
 }
 
-// The normal the ripples a player or mob left add to the surface at `p` (world xz). Each source in
-// `frame.water_disturb` is a ring: sin(pi * r/R) is zero at its centre and its rim and strongest
-// between, and its gradient tilts the normal along the ring, so the crest pushes outward and a
-// trough trails behind. `view_dist` fades the rings out with distance so far water stays calm.
-fn water_ripples(p: vec2<f32>, view_dist: f32) -> vec3<f32> {
-    let fade = 1.0 - smoothstep(24.0, 56.0, view_dist);
-    if fade <= 0.0 {
+// One expanding ring: `sin(pi*x)` is zero at its centre and its rim and strongest between, so its
+// gradient tilts the surface along the ring, crest pushing out and trough trailing. `d` is the offset
+// from the ring's centre, `radius` its current size and `decay` how far through its life it is.
+fn ring_slope(d: vec2<f32>, radius: f32, decay: f32, strength: f32) -> vec2<f32> {
+    let r = length(d);
+    if r >= radius || radius <= 1e-4 {
+        return vec2<f32>(0.0, 0.0);
+    }
+    let x = r / radius;
+    // d(sin(pi*x))/dr = pi/R * cos(pi*x): the slope of the ring.
+    let slope = 3.14159265 / radius * cos(x * 3.14159265);
+    let dir = select(vec2<f32>(1.0, 0.0), d / r, r > 1e-4);
+    return dir * (slope * decay * strength);
+}
+
+// The rain's rings: one impact per cell of a grid in world xz, each an expanding ring whose phase
+// differs per cell, so the surface is pricked all over instead of pulsing as one. `p` is the
+// fragment's camera-relative xz and `strength` scales with the rain. The grid is the world's, not
+// the camera's, so it stays put as you walk; the world xz is wrapped to a small period before the
+// hash, because a hash of a huge coordinate loses the precision that makes the cells distinct, and
+// a period the size of a few chunks is invisible on rain. Nine cells is enough: a ring's radius
+// stays under a block, so only the fragment's own cell and its neighbours can reach it.
+fn rain_ripples(p: vec2<f32>, strength: f32) -> vec3<f32> {
+    if strength <= 0.0 {
         return vec3<f32>(0.0, 0.0, 0.0);
     }
-    var dx = 0.0;
-    var dz = 0.0;
-    for (var i = 0u; i < 16u; i = i + 1u) {
-        let s = frame.water_disturb[i];
-        let radius = s.z;
-        // Unused slots are all zero: no radius, no ripple.
-        if radius <= 0.0 {
-            continue;
+    let world = p + frame.camera_position.xz;
+    let cell = floor(world);
+    let period = 64.0;
+    var tilt = vec2<f32>(0.0, 0.0);
+    for (var i = -1; i <= 1; i = i + 1) {
+        for (var j = -1; j <= 1; j = j + 1) {
+            let c = cell + vec2<f32>(f32(i), f32(j));
+            // Hash the cell's index wrapped to a small period: hashing the world cell directly
+            // would lose the precision that keeps neighbouring cells distinct far from spawn.
+            let h = hash21(c - period * floor(c / period));
+            let centre = c + vec2<f32>(h, fract(h * 7.13));
+            let age = fract(frame.time * 0.85 + h * 3.7);
+            let radius = age * 1.1;
+            tilt += ring_slope(world - centre, radius, (1.0 - age) * (1.0 - age), strength);
         }
-        let d = p - s.xy;
-        let r = length(d);
-        if r >= radius {
-            continue;
-        }
-        let x = r / radius;
-        // d(sin(pi*x))/dr = pi/R * cos(pi*x): the slope of the ring.
-        let slope = 3.14159265 / radius * cos(x * 3.14159265);
-        let dir = select(vec2<f32>(1.0, 0.0), d / r, r > 1e-4);
-        let k = slope * s.w * water_disturb_strength * fade;
-        dx += dir.x * k;
-        dz += dir.y * k;
     }
-    return vec3<f32>(-dx, 0.0, -dz);
+    return vec3<f32>(-tilt.x, 0.0, -tilt.y);
+}
+
+// The rings a swimmer leaves: two rings centred on the camera, half a life apart, so the surface
+// around the player is always disturbed. Only while the camera is in water (`eye_in` 1).
+fn swim_ripples(p: vec2<f32>, strength: f32) -> vec3<f32> {
+    if strength <= 0.0 || frame.eye_in != 1u {
+        return vec3<f32>(0.0, 0.0, 0.0);
+    }
+    var tilt = vec2<f32>(0.0, 0.0);
+    for (var i = 0u; i < 2u; i = i + 1u) {
+        let age = fract(frame.time * 0.9 + f32(i) * 0.5);
+        let radius = age * 2.4;
+        tilt += ring_slope(p, radius, (1.0 - age) * (1.0 - age), strength);
+    }
+    return vec3<f32>(-tilt.x, 0.0, -tilt.y);
 }
 
 // The caustic web the sun casts onto the water: two ridged noise layers, each a bright thin line

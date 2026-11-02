@@ -38,7 +38,7 @@ water_waves = 0.5         # how strong the moving surface is (0..1)
 water_specular = 0.6      # the sun/moon glint (0..2); lower is calmer
 water_reflect = 0.5       # the sky reflection at grazing angles (0..1)
 water_caustics = 0.5      # the sun's web on the water in daylight (0..1)
-water_disturb_strength = 0.6  # player/mob ripples (0..1.5); needs Extras > Water ripples
+water_ripples = 0.6        # rain and swimmer rings (0..1.5)
 
 # --- Bloom ---
 bloom = true

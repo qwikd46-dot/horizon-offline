@@ -1,7 +1,7 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "1.5.0"
+version = "1.6.0"
 api = "0.1"
 description = "A complementary/BSL-inspired look tuned for Horizon: a glowing sun, a moon that lights the world with soft shade and a reddened sunrise horizon, real water with a moon glint and a sky reflection, screen-space shadows, moon-lit clouds, a soft bloom and a filmic night grade, with quality presets and a commented settings file."
 authors = ["Horizon", "qwikd46-dot"]
@@ -223,9 +223,9 @@ max = 1.0
 step = 0.02
 
 [[options]]
-id = "water_disturb_strength"
+id = "water_ripples"
 name = "Water ripples"
-description = "How strongly a player or mob moving in water ripples the surface. Needs Extras > Water ripples on. 0 turns them off."
+description = "How strongly rain pricks the surface and a swimmer leaves rings behind. 0 turns them off."
 type = "float"
 default = 0.6
 min = 0.0
