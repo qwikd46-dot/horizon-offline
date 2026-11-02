@@ -13,7 +13,7 @@ Horizon's own format.
 | Authoring tool | `horizon-shader` (same crate) | `new`, `check`, `pack` |
 | Templates | `crates/horizon-shader-api/templates/` | post, sky, material |
 | Example pack | `crates/horizon-shader-api/packs/golden_hour` | a warm sky and two post passes |
-| Built-in pack | `crates/horizon-shader-api/packs/horizon_complementary` | Horizon Complementary: sky, material, bloom, grade; written into `shaderpacks/` on first run and by the launcher before Play |
+| Built-in pack | `crates/horizon-shader-api/packs/horizon_complementary` | Horizon Complementary: sky, material, shadows, bloom, grade; written into `shaderpacks/` on first run and by the launcher before Play |
 | In the game: every stage | Options > Horizon Settings > Shader Packs | sky, material, post passes, hot reload |
 | The registry and the launcher | `shader` kind ([api/mod-index.md](api/mod-index.md)); the Mods page's Shader packs tab | checked, then installed into `shaderpacks/` |
 
@@ -53,7 +53,7 @@ it on Options > Horizon Settings > Shader Packs, which lists Horizon's packs, ma
 name>` runs a pack whatever the page says, for development. The game checks the pack first, and refuses one that
 fails, with its problems in the chat. While it runs, the game looks at the pack twice a second: save a file
 and the pack is checked and rebuilt in place ("Shader pack ... reloaded"); if the new version fails, the chat says
-where and the last good version keeps drawing. All three stages run.
+where and the last good version keeps drawing. Every stage runs.
 
 Horizon ships one pack, **Horizon Complementary** (`crates/horizon-shader-api/packs/horizon_complementary`): the
 list writes it into `shaderpacks/` when the folder is missing, and the launcher writes it there before Play as well

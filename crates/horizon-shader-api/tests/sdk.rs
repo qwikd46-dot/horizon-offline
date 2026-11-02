@@ -38,7 +38,10 @@ fn the_built_in_pack_passes() {
         let report =
             check(&pack).unwrap_or_else(|problems| panic!("{}: {problems:?}", builtin.dir));
         let labels: Vec<_> = report.stages.iter().map(|s| s.label.as_str()).collect();
-        assert_eq!(labels, ["Atmosphere", "Material", "Bloom", "Tonemap"]);
+        assert_eq!(
+            labels,
+            ["Atmosphere", "Material", "Shadows", "Bloom", "Tonemap"]
+        );
     }
 }
 
