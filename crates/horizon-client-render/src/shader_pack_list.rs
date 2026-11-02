@@ -43,6 +43,7 @@ pub fn scan(dir: &Path) -> Vec<Entry> {
 pub fn scan_installing_builtin(dir: &Path) -> Vec<Entry> {
     if std::fs::create_dir_all(dir).is_ok() {
         horizon_shader_api::builtin::install(dir);
+        horizon_shader_api::builtin::upgrade(dir);
     }
     scan(dir)
 }

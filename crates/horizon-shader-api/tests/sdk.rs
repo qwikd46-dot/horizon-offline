@@ -108,3 +108,48 @@ fn packs_and_checks_the_package() {
     assert!(!ok && text.contains("failed the check"), "{text}");
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn a_built_in_pack_is_installed_once_and_upgraded_in_place() {
+    let dir = scratch("builtin-install");
+    let wrote = horizon_shader_api::builtin::install(&dir);
+    assert_eq!(wrote, ["horizon_complementary"]);
+    let root = dir.join("horizon_complementary");
+    // A second install leaves the folder alone, and there is nothing to upgrade.
+    assert!(horizon_shader_api::builtin::install(&dir).is_empty());
+    assert!(horizon_shader_api::builtin::upgrade(&dir).is_empty());
+
+    // A file an older build wrote (no marker) with our pack's id is adopted and replaced.
+    std::fs::remove_file(root.join(".horizon-builtin")).unwrap();
+    std::fs::write(root.join("sky.wgsl"), "// an older build\n").unwrap();
+    assert_eq!(
+        horizon_shader_api::builtin::upgrade(&dir),
+        ["horizon_complementary"]
+    );
+    let current = &horizon_shader_api::builtin::all()[0];
+    let sky = current
+        .files
+        .iter()
+        .find(|(p, _)| *p == "sky.wgsl")
+        .unwrap()
+        .1;
+    assert_eq!(std::fs::read_to_string(root.join("sky.wgsl")).unwrap(), sky);
+
+    // A pack the player edited (marker present, files changed) is left as it is.
+    std::fs::write(root.join("sky.wgsl"), "// mine\n").unwrap();
+    assert!(horizon_shader_api::builtin::upgrade(&dir).is_empty());
+    assert_eq!(
+        std::fs::read_to_string(root.join("sky.wgsl")).unwrap(),
+        "// mine\n"
+    );
+
+    // A pack with a different id is not ours: untouched.
+    std::fs::write(root.join("horizon-shaders.toml"), "id = \"someone_else\"\n").unwrap();
+    std::fs::remove_file(root.join(".horizon-builtin")).unwrap();
+    assert!(horizon_shader_api::builtin::upgrade(&dir).is_empty());
+    assert_eq!(
+        std::fs::read_to_string(root.join("horizon-shaders.toml")).unwrap(),
+        "id = \"someone_else\"\n"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
