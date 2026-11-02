@@ -59,7 +59,11 @@ pub fn install_builtin(home: &Path) -> Vec<&'static str> {
     if fs::create_dir_all(&dir).is_err() {
         return Vec::new();
     }
-    horizon_shader_api::builtin::install(&dir)
+    let mut wrote = horizon_shader_api::builtin::install(&dir);
+    // A pack an older build wrote is brought up to date, so a new shader pack reaches a player
+    // who already ran one; a pack they edited is left as it is (builtin::upgrade).
+    wrote.extend(horizon_shader_api::builtin::upgrade(&dir));
+    wrote
 }
 
 /// The marker saying the performance profile was written; its absence is what makes it run once.
