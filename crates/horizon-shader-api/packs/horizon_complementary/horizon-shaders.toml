@@ -1,9 +1,9 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "1.0.0"
+version = "1.1.0"
 api = "0.1"
-description = "A complementary/BSL-inspired look tuned for Horizon: warmer light, a drifting cloud layer, haze, bloom and a filmic grade, with toggles and a performance mode."
+description = "A complementary/BSL-inspired look tuned for Horizon: forward scattering at sunrise, a drifting cloud deck, haze, a soft bloom and a filmic grade, with toggles and a performance mode."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
 shared = ["common.wgsl"]

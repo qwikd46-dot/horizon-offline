@@ -172,3 +172,27 @@ fn a_dropped_file_goes_to_its_folder_under_a_free_name() {
     fs::remove_dir_all(&home).unwrap();
     fs::remove_dir_all(&drops).unwrap();
 }
+
+#[test]
+fn horizon_own_shader_pack_is_written_once_and_left_alone_after() {
+    let home = home("builtin");
+    // The game's folder has no shaderpacks/ yet: the launcher makes it and writes the pack.
+    assert!(
+        fs::remove_dir_all(home.join("shaderpacks")).is_err() || !home.join("shaderpacks").is_dir()
+    );
+    let wrote = install_builtin(&home);
+    assert!(!wrote.is_empty());
+    let listed = list(&home, Kind::Shader);
+    assert!(
+        listed.iter().any(|p| p.title == "Horizon Complementary"),
+        "the pack should be listed: {listed:?}"
+    );
+    let dir = home.join("shaderpacks/horizon_complementary");
+    assert!(dir.join("horizon-shaders.toml").is_file());
+    assert!(dir.join("post/bloom.wgsl").is_file());
+    // A pack that is already there is left alone, even if the player edited it.
+    fs::write(dir.join("sky.wgsl"), b"// mine").unwrap();
+    assert!(install_builtin(&home).is_empty());
+    assert_eq!(fs::read_to_string(dir.join("sky.wgsl")).unwrap(), "// mine");
+    fs::remove_dir_all(&home).unwrap();
+}

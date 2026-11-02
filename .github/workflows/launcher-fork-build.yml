@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'launcher/**'
+      - 'crates/horizon-shader-api/**'
       - 'crates/horizon-bench/**'
       - 'crates/horizon-friends/**'
       - 'crates/horizon-mods/**'

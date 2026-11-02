@@ -49,6 +49,19 @@ pub struct Pack {
     pub enabled: bool,
 }
 
+/// Writes Horizon's own shader packs into `home/shaderpacks/` when their folder is missing, and
+/// returns the ones it wrote. The game writes them itself on its first run, but the launcher does
+/// it before Play too: a game build that predates a pack, or one whose own list does not install
+/// it, still shows it on the Shader Packs page instead of an empty list. A folder that is there
+/// is left alone, so a pack the player edited or deleted stays that way.
+pub fn install_builtin(home: &Path) -> Vec<&'static str> {
+    let dir = home.join(Kind::Shader.folder());
+    if fs::create_dir_all(&dir).is_err() {
+        return Vec::new();
+    }
+    horizon_shader_api::builtin::install(&dir)
+}
+
 /// The packs of `kind` in the game folder `home`, by name: turning one on or off leaves it where
 /// it is.
 pub fn list(home: &Path, kind: Kind) -> Vec<Pack> {

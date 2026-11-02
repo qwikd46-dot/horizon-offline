@@ -1,5 +1,6 @@
 // The final grade: exposure, a filmic curve (or a softer shoulder), golden light while the sun
-// is low, mid-tone contrast, saturation and an optional vignette.
+// is low, cool shadows, mid-tone contrast, saturation and an optional vignette. The order is
+// chosen so nothing clips before the curve and the tint shifts hue without crushing detail.
 override exposure: f32 = 1.05;
 override filmic: bool = true;
 override contrast: f32 = 1.08;
@@ -21,12 +22,20 @@ fn post(input: PostInput) -> vec4<f32> {
         // brightness.
         c = c / (1.0 + 0.25 * c) * 1.25;
     }
+
     // Golden light once the curve is applied, so the tint shifts hue without crushing detail.
     let golden = warmth * mix(0.25, 1.0, sun_low()) * daylight() * (1.0 - frame.rain * 0.7);
-    c *= mix(vec3<f32>(1.0), vec3<f32>(1.1, 1.0, 0.84), min(golden, 1.0));
+    c *= mix(vec3<f32>(1.0), vec3<f32>(1.12, 1.0, 0.82), min(golden, 1.0));
+
+    // Cool the shadows a touch (the complementary look): only where the picture is dark, and
+    // never lifting black into blue.
+    let shadow = 1.0 - smoothstep(0.0, 0.5, luminance(c));
+    c += vec3<f32>(-0.012, 0.0, 0.03) * shadow;
+
     // Contrast around mid grey, then saturation around each pixel's own luminance.
     c = (c - 0.5) * contrast + 0.5;
-    c = mix(vec3<f32>(luminance(c)), c, saturation);
+    c = saturate(c, saturation);
+
     if vignette {
         let aspect = frame.resolution.x / max(frame.resolution.y, 1.0);
         let d = length((input.uv - 0.5) * vec2<f32>(aspect, 1.0)) / length(vec2<f32>(aspect, 1.0) * 0.5);

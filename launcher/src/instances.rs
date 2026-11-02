@@ -597,6 +597,9 @@ pub fn play_time(played: Duration) -> String {
 /// launcher has them, and options.txt and the offline name when it has none yet.
 pub fn apply(cmd: &mut Command, instance: &Instance) -> Result<(), String> {
     instance.horizon()?;
+    // Horizon's own shader packs, written into this instance's `shaderpacks/` when missing, so
+    // the Shader Packs page has them whatever game build is installed (packs::install_builtin).
+    crate::packs::install_builtin(&instance.home);
     match instance.kind {
         Kind::Default => return Ok(()),
         Kind::Own => {
