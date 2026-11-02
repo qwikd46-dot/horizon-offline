@@ -92,15 +92,19 @@ fn cloud_cover(d: vec3<f32>, detail: bool) -> f32 {
     return smoothstep(0.52 - frame.rain * 0.18, 0.82 - frame.rain * 0.2, n) * smoothstep(0.0, 0.13, d.y);
 }
 
-// A water surface normal from three travelling wave trains, in world axes (y up). Coherent and
-// cheap, so the highlights slide and swell instead of glittering like a hash. `amplitude` 0 is flat.
+// A water surface normal from a slow swell and two crossing chop waves. Each term is one travelling
+// sine, and their directions and speeds are all different, so the crests drift instead of settling
+// into a repeating grid. The gradient is analytic, so this is a few cosines and no texture read.
+// `amplitude` 0 is flat water.
 fn wave_normal(p: vec2<f32>, amplitude: f32, scale: f32, speed: f32) -> vec3<f32> {
     let t = frame.time * speed;
-    let p1 = dot(p, vec2<f32>(0.62, 0.78)) * scale + t;
-    let p2 = dot(p, vec2<f32>(-0.71, 0.70)) * scale * 1.7 - t * 1.3;
-    let p3 = dot(p, vec2<f32>(-0.09, 1.48)) * scale * 0.55 + t * 0.7;
-    let dx = 0.62 * cos(p1) - 0.71 * cos(p2) * 1.3 - 0.045 * cos(p3);
-    let dz = 0.78 * cos(p1) + 0.70 * cos(p2) * 1.3 + 0.74 * cos(p3);
+    let k1 = vec2<f32>(0.66, 0.75) * scale * 0.9;
+    let k2 = vec2<f32>(-0.62, 0.78) * scale * 1.9;
+    let k3 = vec2<f32>(0.18, -0.98) * scale * 3.2;
+    let dx = k1.x * cos(dot(k1, p) + t) + k2.x * cos(dot(k2, p) - t * 1.15)
+        + k3.x * cos(dot(k3, p) + t * 1.7);
+    let dz = k1.y * cos(dot(k1, p) + t) + k2.y * cos(dot(k2, p) - t * 1.15)
+        + k3.y * cos(dot(k3, p) + t * 1.7);
     return normalize(vec3<f32>(-dx * amplitude, 1.0, -dz * amplitude));
 }
 

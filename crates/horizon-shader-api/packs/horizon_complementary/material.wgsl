@@ -4,12 +4,12 @@
 // after this. The pack cannot see a surface normal, so the moon light is hemispheric: what the sky
 // reaches is what the moon lights, and the post pass adds the local shade.
 override fog: bool = true;
-override fog_amount: f32 = 0.22;
+override fog_amount: f32 = 0.1;
 override night_boost: f32 = 0.16;
 override moonlight: f32 = 0.55;
 override water: bool = true;
 override water_waves: f32 = 0.5;
-override water_specular: f32 = 0.9;
+override water_specular: f32 = 0.6;
 override water_reflect: f32 = 0.5;
 
 fn material(input: MaterialInput) -> Surface {
@@ -48,39 +48,41 @@ fn material(input: MaterialInput) -> Surface {
         lit *= mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.78, 0.9, 1.0), smoothstep(0.0, 16.0, length(input.position)));
     }
 
-    // Water and ice: the flat top face of a translucent block in the open sky. A real wave normal
-    // gives a sun or moon highlight and a sky reflection that grows at grazing angles.
+    // Water and ice: the flat top face of a translucent block in the open sky. Waves only tilt the
+    // normal (the albedo keeps vanilla's water texture), and the wave, the reflection and the glint
+    // all fade out with distance, so far water is a calm flat sheet instead of a shimmering pattern.
     let is_water = input.translucent && sky > 0.8 && block < 0.25 && frame.dimension == 0;
     if water && is_water {
-        let nrm = wave_normal(input.position.xz + vec2<f32>(frame.camera_position.x, frame.camera_position.z), water_waves, 0.35, 0.55);
         let view = -normalize(input.position + vec3<f32>(0.0, 0.001, 0.0));
+        // Wave detail is only worth its cost up close; past ~48 blocks the surface is flat.
+        let near = 1.0 - smoothstep(28.0, 64.0, length(input.position));
+        let nrm = wave_normal(input.position.xz, water_waves * near * 0.7, 0.32, 0.5);
         let sun_high = max(frame.sun_direction.y, 0.0);
         let clear = 1.0 - frame.rain;
 
-        // The water body: darker and less saturated than the sky, tinted by the sky's own colour.
-        // Shallow reads teal, deep near-black navy, so it never glows on its own.
-        let shallow = vec3<f32>(0.06, 0.13, 0.16);
-        let deep = vec3<f32>(0.02, 0.04, 0.09);
-        let body = mix(deep, shallow, clamp(open * 0.6 + 0.4, 0.0, 1.0));
-        let tinted = mix(body, body * (frame.sky_color * 1.4 + 0.15), 0.45);
-        var water_lit = mix(lit * 0.4, tinted, 0.75);
+        // The water body: vanilla's water texture, tinted a touch toward the sky, so it stays water
+        // and never turns into a flat painted colour.
+        var water_lit = lit * 0.85;
 
-        // Fresnel: more reflective at grazing angles, darker looking straight down.
-        let fres = fresnel(view, nrm, 5.0);
-        let reflected_sky = mix(frame.sky_color, frame.sky_color * 1.25 + vec3<f32>(0.04), fres);
-        // The moon on the water: a broad soft glint that breaks up with the wave normal.
+        // Fresnel at water's index: about 2% facing the surface, near total at a grazing angle. This
+        // is what makes water read as water instead of a bright mirror.
+        let f0 = 0.02;
+        let fres = clamp(f0 + (1.0 - f0) * pow(1.0 - max(dot(view, nrm), 0.0), 5.0), 0.0, 1.0);
+        let reflected_sky = mix(frame.sky_color, frame.sky_color * 1.15, fres);
+        // The moon on the water: one soft broad highlight, broken up by the wave normal, dimmed at
+        // range. The 220-power term was a hard sparkle that made the whole sheet glow.
         let to_moon = max(dot(nrm, frame.moon_direction), 0.0);
-        let moon_glint = (specular(nrm, view, frame.moon_direction, 220.0) + pow(to_moon, 6.0) * 0.35)
-            * moon_color() * moon_up() * n * clear * water_specular;
-        let reflected = (reflected_sky * (1.0 - n) + moon_color() * 0.25 * n) * water_reflect + moon_glint;
-        water_lit = mix(water_lit, water_lit * 0.7 + reflected, clamp(fres * 0.9 + 0.12, 0.0, 1.0));
+        let moon_glint = (specular(nrm, view, frame.moon_direction, 90.0) * 0.5 + pow(to_moon, 8.0) * 0.18)
+            * moon_color() * moon_up() * n * clear * water_specular * near;
+        let reflected = (reflected_sky * (1.0 - n) + moon_color() * 0.22 * n) * water_reflect * near + moon_glint;
+        water_lit = mix(water_lit, water_lit * 0.35 + reflected, fres);
 
-        // The sun's own glint by day.
-        water_lit += specular(nrm, view, frame.sun_direction, 140.0)
-            * sun_color() * daylight() * clear * water_specular * sun_high;
+        // The sun's own glint by day, also faded at range.
+        water_lit += specular(nrm, view, frame.sun_direction, 80.0)
+            * sun_color() * daylight() * clear * water_specular * sun_high * near * 0.8;
 
-        // A little foam/shore sparkle from the waves, brightest in moonlight.
-        water_lit += vec3<f32>(0.5, 0.6, 0.75) * pow(max(to_moon, 0.0), 2.0) * moon_up() * n * 0.06;
+        // A faint shore sparkle only, and only up close.
+        water_lit += vec3<f32>(0.4, 0.5, 0.65) * pow(to_moon, 3.0) * moon_up() * n * 0.025 * near;
 
         lit = water_lit;
     }
@@ -89,7 +91,9 @@ fn material(input: MaterialInput) -> Surface {
     // middle distance stays clear, and toward the sky colour so the horizon never goes flat.
     if fog {
         let dist = length(input.position);
-        let start = max(frame.fog_start, frame.fog_end * 0.62);
+        // Only the last stretch before the far plane: most real shaders keep the middle distance
+        // clear, and a haze that starts early is what made the whole view look washed out.
+        let start = max(frame.fog_start, frame.fog_end * 0.88);
         let haze = smoothstep(start, max(frame.fog_end, start + 1.0), dist) * fog_amount;
         let tint = mix(frame.fog_color, frame.sky_color, 0.5 * n);
         let warm = mix(tint, tint * sun_tint(), min(sun_low() * daylight(), 1.0) * 0.5);

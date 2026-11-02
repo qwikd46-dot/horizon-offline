@@ -6,7 +6,7 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-Dusk, dawn and night are the focus of 1.3.0. Every light, tint and quality value is a WGSL `override`
+Dusk, dawn and night are the focus of 1.4.0. Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
@@ -17,13 +17,17 @@ constant the GPU skips.
   little haze low in the sky. A one-bit dither removes gradient banding.
 - **Material** (`material.wgsl`): vanilla's lightmap with torch light pulled toward amber, a cool
   **moonlight** that lights canopy, trunks and hills on a clear night, a blue night ambient with a
-  ground bounce so shadows are deep blue, not black, a weak warm light from the low sun at dusk, and
-  real travelling waves on water with a **moon glint**, a sky reflection that grows at grazing
-  angles and a sun glint by day. Only a little aerial haze, and only near the far plane.
+  ground bounce so shadows are deep blue, not black, and a weak warm light from the low sun at dusk.
+  Water keeps vanilla's water texture and adds a slow swell and two crossing chop waves that only
+  tilt the **surface normal**, a **dielectric Fresnel** (about 2% facing the surface, near total at a
+  grazing angle) with a sky reflection, and one soft sun or moon glint. The waves, the reflection and
+  the glint all fade out with distance, so far water is a calm flat sheet. Only a little aerial haze,
+  and only in the last stretch before the far plane.
 - **Shadows** (`post/shadows.wgsl`): screen-space ambient occlusion and contact shadows from the
   depth already in the picture (the engine has none of its own): the dark seam where surfaces meet
-  and the soft shade under objects. A world-space radius shrinks with distance, so it does not
-  shimmer; the far half of the view is skipped before any tap.
+  and the soft shade under objects. The taps are taken at a small, **clamped screen radius** with a
+  depth bias and a gentle strength, so the pattern stays pinned to the geometry instead of swimming
+  across a flat face, and the far half of the view is skipped before any tap.
 - **Bloom** (`post/bloom.wgsl`): golden-angle spiral taps whose offsets scale with the picture's
   height, so the bloom looks the same at any resolution; a soft knee so the threshold never
   flickers. It is the heaviest pass, so its tap count follows the quality preset.
@@ -40,7 +44,11 @@ for a weak GPU. A commented reference for every option is in
 
 What the pack cannot do, because the API has no such stage: a real shadow map, screen-space
 reflections, half-resolution post passes, a light list, or a surface normal on the material stage.
-Those are engine work and are written up in `docs/shader-night-quality-engine.md`.
+Those are engine work and are written up in `docs/shader-night-quality-engine.md`. In particular the
+pack cannot cast **real sun or moon shadows**: `StageKind` is only `sky`, `material` and `post`, and
+none of them sees a shadow map, so the "Shadows" pass here is screen-space occlusion from the depth
+buffer, not a shadow map. A shadow stage is the single biggest graphics feature the engine still
+needs.
 
 Check it with:
 

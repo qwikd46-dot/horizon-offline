@@ -1,4 +1,4 @@
-# Horizon Complementary 1.3.0 - night, dusk and dawn
+# Horizon Complementary 1.4.0 - night, dusk and dawn
 #
 # This file documents every option. The game keeps your real values in options.txt; set them on
 # Options > Horizon Settings > Shader Packs > Horizon Complementary. Nothing here is read by the
@@ -22,20 +22,20 @@ night_desaturate = 0.30   # how much dark regions desaturate and shift blue (0..
 
 # --- Shadows (screen-space ambient occlusion) ---
 shadows = true            # the soft shade where surfaces meet and under objects
-ao_strength = 0.55        # how dark it gets (0..1)
-ao_radius = 1.3           # how far it reaches, in blocks (0.5..3)
+ao_strength = 0.3         # how dark it gets (0..1); gentle on purpose, see the README
+ao_radius = 1.0           # how far it reaches, in blocks (0.5..3); taps use a clamped screen radius
 ao_quality = 2            # 0=4 taps, 1=6, 2=10 (default), 3=16 (capped by night_quality)
 
 # --- Sky ---
-sun_glow = 1.0            # the sun's halo (0..2)
-moon_glow_amount = 1.0    # the moon's soft halo (0..2)
+sun_glow = 0.9            # the sun's halo (0..2)
+moon_glow_amount = 0.8    # the moon's soft halo (0..2)
 clouds = true             # the atmospheric cloud layer
 cloud_quality = 2         # 0 = one noise octave (fastest), 2 = two octaves (capped by night_quality)
 
 # --- Water ---
 water = true              # waves, the sun/moon glint and the sky reflection
 water_waves = 0.5         # how strong the moving surface is (0..1)
-water_specular = 0.9      # the sun/moon glint (0..2)
+water_specular = 0.6      # the sun/moon glint (0..2); lower is calmer
 water_reflect = 0.5       # the sky reflection at grazing angles (0..1)
 
 # --- Bloom ---
@@ -53,7 +53,7 @@ vignette = false
 
 # --- Fog ---
 fog = true
-fog_amount = 0.22         # only a little haze, and only near the far plane
+fog_amount = 0.1          # only a little haze, and only in the last stretch before the far plane
 
 # --- One switch for a weak GPU ---
 performance_mode = false  # the lowest quality everywhere at once
