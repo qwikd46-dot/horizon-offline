@@ -1,17 +1,18 @@
-// The water surface: a travelling-wave field, the caustics the sun casts through it, the rings the
-// rain and a swimmer leave behind, and the specular helpers the material stage uses. Shared by the
-// pack, so the material stage calls it and the sky and post stages simply do not. Every wave is
-// analytic (a few cosines), the rings are procedural (a handful of hashes), and nothing here samples
-// a texture, so a stage pays only for what it calls.
+// The water surface: the Glistening Water travelling-wave field, the sun glint ("glisten") it throws
+// back, the caustics the sun casts through it, the rings the rain and a swimmer leave behind, and the
+// specular helper the material stage uses. Shared by the pack, so the material stage calls it and the
+// sky and post stages simply do not.
 //
-// The reference for the wave field is the WebGPU water simulation (jeantimex/webgpu-water) and the
-// Gerstner-wave look real shaders use: a sum of directional waves whose lengths, directions and
-// speeds all differ, so crests drift instead of locking into a repeating grid. Horizon's material
-// stage is per fragment on an already-built block face, so the field shades the surface (its normal)
-// rather than displacing geometry; the geometry is vanilla's water block.
+// The wave field is a port of Glistening Water V1.1: six lake-scale Gerstner components plus three
+// capillary ones, each travelling at the deep-water speed (angular frequency = sqrt(g * wave number))
+// instead of a hand-picked one, so the crests move at the right rate and drift past each other instead
+// of locking into a repeating grid. The normal is the exact derivative of the same field, so the shape
+// and the shading agree. Horizon's material stage shades an already-built block face, so the field
+// tilts the surface (its normal) rather than displacing geometry; the geometry is vanilla's water
+// block. The field is anchored to the world, not the camera, so it stays put as you walk.
 //
-// The rings only read `frame.time`, `frame.rain`, `frame.camera_position` and `frame.eye_in`, all of
-// which every build of the game gives a pack, so the pack loads everywhere.
+// Everything here is analytic (a handful of cosines and two hashes) and nothing samples a texture, so
+// a stage pays only for what it calls.
 
 override water: bool = true;
 override water_waves: f32 = 0.5;
@@ -19,23 +20,92 @@ override water_specular: f32 = 0.6;
 override water_reflect: f32 = 0.5;
 override water_caustics: f32 = 0.5;
 override water_ripples: f32 = 0.6;
+override water_clarity: f32 = 0.75;
 
-// A water surface normal from four travelling waves: a long swell, two crossing chop trains and one
-// fine ripple. Their directions, lengths and speeds all differ, so the crests drift; the gradient is
-// analytic, so this is a handful of cosines and no texture read. `amplitude` 0 is flat water.
-fn wave_normal(p: vec2<f32>, amplitude: f32, scale: f32, speed: f32) -> vec3<f32> {
-    let t = frame.time * speed;
-    let k1 = vec2<f32>(0.62, 0.78) * scale * 0.7;
-    let k2 = vec2<f32>(-0.70, 0.71) * scale * 1.6;
-    let k3 = vec2<f32>(0.28, -0.96) * scale * 2.9;
-    let k4 = vec2<f32>(-0.45, -0.89) * scale * 4.7;
-    let p1 = dot(k1, p) + t;
-    let p2 = dot(k2, p) - t * 1.23;
-    let p3 = dot(k3, p) + t * 1.7;
-    let p4 = dot(k4, p) - t * 2.3;
-    let dx = k1.x * cos(p1) + k2.x * cos(p2) + k3.x * cos(p3) * 0.7 + k4.x * cos(p4) * 0.45;
-    let dz = k1.y * cos(p1) + k2.y * cos(p2) + k3.y * cos(p3) * 0.7 + k4.y * cos(p4) * 0.45;
-    return normalize(vec3<f32>(-dx * amplitude, 1.0, -dz * amplitude));
+const GW_TAU: f32 = 6.28318530717958647692;
+const GW_GRAVITY: f32 = 9.81;
+// Glistening Water's WAVE_SPEED setting, at its default.
+const GW_SPEED: f32 = 0.8;
+
+// The accumulated surface: the displacement and the two tangents. Their cross product is the normal.
+struct GwWave {
+    offset: vec3<f32>,
+    tangent_x: vec3<f32>,
+    tangent_z: vec3<f32>,
+}
+
+// A large period keeps the wave coordinates small far from spawn, where a raw world coordinate would
+// lose the precision that keeps neighbouring crests distinct.
+fn gw_wrap(p: vec2<f32>) -> vec2<f32> {
+    return p - 4096.0 * floor(p / 4096.0);
+}
+
+fn gw_zero() -> GwWave {
+    return GwWave(vec3<f32>(0.0), vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 0.0, 1.0));
+}
+
+// One travelling Gerstner component: its displacement and its exact x and z derivatives. A lower
+// horizontal-to-vertical ratio (0.5) rounds the crests instead of pinching them into hard ridges.
+fn gw_add_gerstner(w: ptr<function, GwWave>, position: vec2<f32>, direction: vec2<f32>,
+                   wavelength: f32, amplitude: f32, speed: f32, phase_offset: f32, time: f32) {
+    let dir = normalize(direction);
+    let wave_number = GW_TAU / wavelength;
+    let angular_frequency = sqrt(GW_GRAVITY * wave_number);
+    let phase = wave_number * dot(dir, position)
+        - angular_frequency * GW_SPEED * speed * time + phase_offset;
+    let sine = sin(phase);
+    let cosine = cos(phase);
+    let horizontal = amplitude * 0.5;
+    (*w).offset += vec3<f32>(dir.x * horizontal * cosine, amplitude * sine,
+                             dir.y * horizontal * cosine);
+    let dx = wave_number * dir.x;
+    let dz = wave_number * dir.y;
+    (*w).tangent_x += vec3<f32>(-dir.x * horizontal * sine * dx, amplitude * cosine * dx,
+                                -dir.y * horizontal * sine * dx);
+    (*w).tangent_z += vec3<f32>(-dir.x * horizontal * sine * dz, amplitude * cosine * dz,
+                                -dir.y * horizontal * sine * dz);
+}
+
+// Six incommensurate wavelengths, so there is no obvious tiled beat; the energy sits on the longer
+// lake-scale bands, which keeps the surface broad and gentle instead of stripe-like.
+fn gw_add_wind(w: ptr<function, GwWave>, position: vec2<f32>, strength: f32, time: f32) {
+    gw_add_gerstner(w, position, vec2<f32>(1.000,  0.080), 23.70, strength * 0.10, 0.58, 0.18, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.985,  0.220), 14.90, strength * 0.20, 0.71, 1.37, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.950, -0.310),  9.35, strength * 0.22, 0.84, 2.81, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.900,  0.430),  6.15, strength * 0.20, 0.99, 4.46, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.995, -0.100),  3.92, strength * 0.17, 1.14, 5.72, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.860,  0.510),  2.63, strength * 0.11, 1.31, 3.53, time);
+}
+
+// Very small capillary ripples break up the reflection bands without adding hard geometry.
+fn gw_add_capillary(w: ptr<function, GwWave>, position: vec2<f32>, strength: f32, time: f32) {
+    gw_add_gerstner(w, position, vec2<f32>(0.970,  0.260), 1.37, strength * 0.025, 1.38, 0.91, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.910, -0.420), 0.89, strength * 0.014, 1.56, 4.08, time);
+    gw_add_gerstner(w, position, vec2<f32>(0.800,  0.600), 0.57, strength * 0.006, 1.73, 2.17, time);
+}
+
+// The water normal at a world xz. `detail` adds the capillary layer; the caller drops it with
+// distance, where it is sub-pixel. `strength` 0 is flat water.
+fn gw_normal(world_xz: vec2<f32>, time: f32, strength: f32, detail: bool) -> vec3<f32> {
+    if strength <= 0.0 {
+        return vec3<f32>(0.0, 1.0, 0.0);
+    }
+    var w = gw_zero();
+    let position = gw_wrap(world_xz);
+    gw_add_wind(&w, position, strength, time);
+    if detail {
+        gw_add_capillary(&w, position, strength, time);
+    }
+    let analytic = normalize(cross(w.tangent_z, w.tangent_x));
+    return normalize(mix(vec3<f32>(0.0, 1.0, 0.0), analytic, 0.92));
+}
+
+// The glisten: how squarely the wave normal throws the sun back at the eye. Three overlapping
+// finite-width lobes keep the sun's road and its brilliant centres without the sub-pixel spikes that
+// pop as the camera crosses a pixel boundary.
+fn gw_glisten_response(sun_alignment: f32) -> f32 {
+    let a = clamp(sun_alignment, 0.0, 1.0);
+    return pow(a, 72.0) * 0.28 + pow(a, 140.0) * 0.82 + pow(a, 360.0) * 0.50;
 }
 
 // One expanding ring: `sin(pi*x)` is zero at its centre and its rim and strongest between, so its
@@ -109,7 +179,7 @@ fn caustic_pattern(p: vec2<f32>, t: f32) -> f32 {
     return v * v;
 }
 
-// A GGX micro-facet specular term: a tighter, more believable sun or moon highlight than a plain
+// A GGX micro-facet specular term: a tighter, more believable moon highlight than a plain
 // Blinn-Phong power, at the same cost. `roughness` ~0.05 is a sharp glint, higher is a broad sheen.
 fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, roughness: f32) -> f32 {
     let h = normalize(v + l);

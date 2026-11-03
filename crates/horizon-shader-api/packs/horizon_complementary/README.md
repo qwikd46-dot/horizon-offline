@@ -6,7 +6,7 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-2.0.0 ports Complementary Reimagined (r5.9.3): its noon, sunset and night skies, its sun, moon and ambient light colours, and its Lottes tonemap, applied once in linear light. Every light, tint and quality value is a WGSL `override`
+2.0.0 ports Complementary Reimagined (r5.9.3): its noon, sunset and night skies, its sun, moon and ambient light colours, and its Lottes tonemap, applied once in linear light. 2.1.0 replaces the water surface with a port of **Glistening Water V1.1**: a physically-timed Gerstner wave field with its own sun glitter. Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
@@ -19,13 +19,18 @@ constant the GPU skips.
   little haze low in the sky. A one-bit dither removes gradient banding.
 - **Material** (`material.wgsl`): Complementary's light — its sun (by day) or moon (by night)
   as a direct light on what the sky reaches, its noon / sunset / night ambient colours, warm block
-  light and a floor so caves are never black — computed in linear light and tonemapped once. Water keeps vanilla's water texture and adds a **four-wave field** (a long swell, two crossing chop
-  trains and a fine ripple) that only tilts the **surface normal**, a **dielectric Fresnel** (about
-  2% facing the surface, near total at a grazing angle) with a sky reflection, a **GGX** sun or moon
-  glint, and **caustics** — the sun's bright web shimmering on the water by day. **Rain** pricks the
-  surface with a grid of expanding rings, and a **swimmer** leaves rings around the camera, both
-  procedural so the pack needs nothing but the frame every build of the game gives it. The waves, the
-  rings, the reflection and the glint all fade out with distance, so far water is a calm flat sheet.
+  light and a floor so caves are never black — computed in linear light and tonemapped once. Water keeps vanilla's water texture and adds **Glistening Water V1.1**: a **nine-wave Gerstner field**
+  (six lake-scale swells and three capillary ripples) whose components each travel at the real
+  deep-water speed (`sqrt(g * k)`), so the crests move at the right rate and drift past each other
+  instead of locking into a repeating grid. The field is anchored to the world, so it stays put as you
+  walk, and it only tilts the **surface normal** (the geometry is vanilla's water block). On top of it a
+  **dielectric Fresnel** (about 2% facing the surface, near total at a grazing angle) with a sky
+  reflection, the **glisten** — the wave normal throwing the sun back at the eye as a glittering road
+  along the sun's path — a **GGX** moon glint, a clear-water absorption that turns the surface teal with
+  **Water clarity**, and **caustics**, the sun's bright web shimmering on the water by day. **Rain**
+  pricks the surface with a grid of expanding rings, and a **swimmer** leaves rings around the camera,
+  both procedural so the pack needs nothing but the frame every build of the game gives it. The waves,
+  the rings, the reflection and the glint all fade out with distance, so far water is a calm flat sheet.
   Only a little aerial haze, and only in the last stretch before the far plane.
 - **Shadows** (`post/shadows.wgsl`): screen-space ambient occlusion and contact shadows from the
   depth already in the picture (the engine has none of its own): the dark seam where surfaces meet
