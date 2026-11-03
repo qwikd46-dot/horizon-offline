@@ -2,20 +2,15 @@
 // low, a blue shadow lift and a slow night exposure so the dark stays readable without crushing to
 // black, cool shadows, mid-tone contrast, saturation and an optional vignette. The order is chosen
 // so nothing clips before the curve and the tint shifts hue without crushing detail.
-override exposure: f32 = 1.05;
+override exposure: f32 = 1.0;
 override filmic: bool = true;
-override contrast: f32 = 1.08;
-override saturation: f32 = 1.18;
-override warmth: f32 = 0.28;
+override contrast: f32 = 1.0;
+override saturation: f32 = 1.0;
+override warmth: f32 = 0.15;
 override vignette: bool = false;
 override night_exposure: f32 = 0.22;
 override shadow_lift: f32 = 0.05;
 override night_desaturate: f32 = 0.3;
-
-// Narkowicz's ACES fit: highlights roll off instead of clipping, and white stays white.
-fn aces(x: vec3<f32>) -> vec3<f32> {
-    return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), vec3<f32>(0.0), vec3<f32>(1.0));
-}
 
 fn post(input: PostInput) -> vec4<f32> {
     let n = night();
@@ -23,13 +18,12 @@ fn post(input: PostInput) -> vec4<f32> {
     // A slow night exposure: the whole picture lifts as the sun sets, following `night()`, which is
     // a smoothstep, so it never flickers or pops. Highlights are held by the filmic curve below.
     let night_gain = 1.0 + n * night_exposure;
-    var c = max(input.color.rgb, vec3<f32>(0.0)) * exposure * night_gain;
+    var c = max(input.color.rgb, vec3<f32>(0.0)) * pow(exposure * night_gain, 1.0 / 2.2);
+    // The frame is already tonemapped (sky and material do it once, in linear light); the filmic
+    // switch only adds a gentle S-curve in gamma space.
     if filmic {
-        c = aces(c);
-    } else {
-        // A gentler shoulder: a quarter of a Reinhard curve, undone so mid-tones keep their
-        // brightness.
-        c = c / (1.0 + 0.25 * c) * 1.25;
+        c = clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+        c = mix(c, c * c * (3.0 - 2.0 * c), 0.3);
     }
 
     // Golden light once the curve is applied, so the tint shifts hue without crushing detail.

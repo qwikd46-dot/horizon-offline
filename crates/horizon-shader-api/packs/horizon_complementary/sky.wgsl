@@ -19,7 +19,8 @@ fn sky(input: SkyInput) -> vec4<f32> {
     let twi = twilight();
     let n = night();
     let clear = 1.0 - frame.rain;
-    var color = input.color.rgb;
+    let overworld = frame.dimension == 0;
+    var color = select(input.color.rgb, cr_sky(d), overworld);
 
     // The sun: a small hot core, a tight bloom and a wide, soft halo. The core is wide enough to
     // read as a disc under vanilla's sprite, the halo is what makes the sky look lit.
@@ -77,7 +78,11 @@ fn sky(input: SkyInput) -> vec4<f32> {
         // A thin band right at the horizon, no more: a wide haze flattened the sky.
         let haze = (1.0 - smoothstep(0.0, 0.07, abs(d.y))) * (0.1 + 0.2 * frame.rain) * fog_amount;
         let tint = mix(frame.sky_color, mix(frame.fog_color, frame.fog_color * sun_tint(), min(low * day * clear, 1.0) * 0.7), 0.4);
-        color = mix(color, tint, haze);
+        color = mix(color, select(tint, to_linear(tint), overworld), haze);
+    }
+
+    if overworld {
+        color = cr_tonemap(color);
     }
 
     // A one-bit dither removes the banding a smooth gradient shows on 8-bit output.

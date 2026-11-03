@@ -1,4 +1,4 @@
-# Horizon Complementary 1.4.0 - night, dusk and dawn
+# Horizon Complementary 2.0.0 - Complementary Reimagined port
 #
 # This file documents every option. The game keeps your real values in options.txt; set them on
 # Options > Horizon Settings > Shader Packs > Horizon Complementary. Nothing here is read by the
@@ -59,3 +59,10 @@ fog_amount = 0.1          # only a little haze, and only in the last stretch bef
 
 # --- One switch for a weak GPU ---
 performance_mode = false  # the lowest quality everywhere at once
+
+# --- Complementary Reimagined tonemap and sun (2.0.0) ---
+sun_strength = 0.55       # how strongly the sun lights the ground (0..1.5)
+tm_exposure = 1.0         # exposure before the tonemap (0.4..2.8)
+tm_contrast = 1.05        # tonemap contrast (0.5..2)
+tm_white_path = 1.0       # tonemap white point (0.1..1.9)
+tm_dark_desat = 0.25      # desaturation of dark regions (0..1)

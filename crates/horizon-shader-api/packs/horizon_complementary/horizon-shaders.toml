@@ -1,9 +1,9 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "1.6.0"
+version = "2.0.0"
 api = "0.1"
-description = "A complementary/BSL-inspired look tuned for Horizon: a glowing sun, a moon that lights the world with soft shade and a reddened sunrise horizon, real water with a moon glint and a sky reflection, screen-space shadows, moon-lit clouds, a soft bloom and a filmic night grade, with quality presets and a commented settings file."
+description = "Complementary Reimagined's sky, light, ambient and tonemap, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, real water, screen-space shadows and bloom."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
 shared = ["common.wgsl", "water.wgsl"]
@@ -277,7 +277,7 @@ id = "saturation"
 name = "Saturation"
 description = "Colour intensity of the final frame."
 type = "float"
-default = 1.18
+default = 1.0
 min = 0.6
 max = 1.8
 step = 0.02
@@ -287,7 +287,7 @@ id = "contrast"
 name = "Contrast"
 description = "Mid-tone contrast, tuned to mimic a lifted but natural look."
 type = "float"
-default = 1.08
+default = 1.0
 min = 0.8
 max = 1.55
 step = 0.01
@@ -297,7 +297,7 @@ id = "exposure"
 name = "Exposure"
 description = "Overall brightness before tonemapping."
 type = "float"
-default = 1.05
+default = 1.0
 min = 0.6
 max = 1.8
 step = 0.01
@@ -307,7 +307,7 @@ id = "warmth"
 name = "Warmth"
 description = "Adds a golden sunrise/sunset tint without making the world too orange."
 type = "float"
-default = 0.28
+default = 0.15
 min = 0.0
 max = 0.8
 step = 0.01
@@ -318,6 +318,56 @@ name = "Performance mode"
 description = "The lowest quality everywhere at once: 4 occlusion taps, one bloom ring, one cloud octave. Use it on a weak GPU instead of lowering each setting."
 type = "bool"
 default = false
+
+[[options]]
+id = "sun_strength"
+name = "Sun strength"
+description = "How strongly the sun lights the ground. With no shadow map every surface the sky reaches is lit, so this is kept below Complementary's own value."
+type = "float"
+default = 0.55
+min = 0.0
+max = 1.5
+step = 0.01
+
+[[options]]
+id = "tm_exposure"
+name = "Tonemap exposure"
+description = "Complementary's exposure before the tonemap."
+type = "float"
+default = 1.0
+min = 0.4
+max = 2.8
+step = 0.05
+
+[[options]]
+id = "tm_contrast"
+name = "Tonemap contrast"
+description = "Complementary's tonemap contrast."
+type = "float"
+default = 1.05
+min = 0.5
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "tm_white_path"
+name = "Tonemap white path"
+description = "How fast very bright colours roll off to white."
+type = "float"
+default = 1.0
+min = 0.1
+max = 1.9
+step = 0.05
+
+[[options]]
+id = "tm_dark_desat"
+name = "Dark desaturation"
+description = "How much dark colours desaturate."
+type = "float"
+default = 0.25
+min = 0.0
+max = 1.0
+step = 0.05
 
 [budget]
 gpu_ms = 2.5

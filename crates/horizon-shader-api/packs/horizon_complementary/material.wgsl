@@ -7,37 +7,29 @@ override fog: bool = true;
 override fog_amount: f32 = 0.1;
 override night_boost: f32 = 0.16;
 override moonlight: f32 = 0.55;
+override sun_strength: f32 = 0.55;
 
 fn material(input: MaterialInput) -> Surface {
     let block = input.light.x;
     let sky = input.light.y;
-    var color = input.albedo.rgb * input.tint.rgb;
-
-    // Torch light is warmer than daylight: pull the lightmap toward amber as block light rises.
-    let lamp = smoothstep(0.0, 0.65, block);
-    let warm = mix(vec3<f32>(1.16, 1.0, 0.82), vec3<f32>(1.22, 0.94, 0.68), lamp * 0.5);
-    let lightmap = mix(input.lightmap, input.lightmap * warm, lamp) * (1.0 + lamp * 0.06);
-    var lit = color * lightmap;
-
-    // How much sky reaches this surface, and how dark it is out: what the night light works on.
-    let open = sky;
     let n = night();
-    let twilight = twilight();
-
-    // The moon: a cool directional light, phase- and height-scaled, on what the sky reaches. This
-    // is what makes canopy, trunks and hills readable at night instead of a near-black green.
-    lit += color * moon_color() * (moonlight * moon_up() * n * open);
-
-    // The night sky's ambient, stronger from above, with a faint ground bounce, so shadows are deep
-    // blue rather than black. Only where the sky reaches, and never on top of torch light.
-    lit += color * night_ambient(open) * (n * open * (1.0 - lamp) * 0.7);
-
-    // A last, gentle artistic lift in the open at night, in a cool tone.
-    lit += color * night_boost * open * n * vec3<f32>(0.32, 0.44, 0.82) * 0.5;
-
-    // The low sun at dusk and dawn: a warm, weak directional light on what the sky reaches, so the
-    // land is not black while the sky is golden.
-    lit += color * sun_color() * (twilight * open * (1.0 - n) * 0.16);
+    var lit: vec3<f32>;
+    if frame.dimension == 0 {
+        // Complementary's lighting, minus the shadow map the engine does not offer: the ambient
+        // sky colour, the sun (by day) or moon (by night) as a direct light on what the sky
+        // reaches, warm block light, and a floor so caves are never black. Computed in linear
+        // light and tonemapped once.
+        let lin = to_linear(input.albedo.rgb * input.tint.rgb);
+        let sl = sky * sky;
+        let direct = mix(sun_strength, moonlight * 1.4, n) * (1.0 - frame.rain * 0.35);
+        let ambient = cr_ambient_color() * sl;
+        let direct_light = cr_light_color() * sl * direct;
+        let lamp = vec3<f32>(1.45, 0.88, 0.58) * pow(block, 3.0);
+        let floor_light = vec3<f32>(0.025 + 0.04 * frame.brightness + 0.35 * frame.night_vision);
+        lit = cr_tonemap(lin * (ambient + direct_light + lamp + floor_light) * (1.0 + night_boost * n));
+    } else {
+        lit = input.albedo.rgb * input.tint.rgb * input.lightmap;
+    }
 
     // Underwater, drift everything toward the water's tint and dim with distance from the eye.
     if frame.eye_in == 1u {

@@ -140,7 +140,7 @@ night is an engine change, not a pack change.
 
 ## 7. Fixes 1-10 implemented here
 
-See the pack `crates/horizon-shader-api/packs/horizon_complementary` (version 1.4.0). The engine-side
+See the pack `crates/horizon-shader-api/packs/horizon_complementary` (version 2.0.0). The engine-side
 list (11-17) is written up in `docs/shader-night-quality-engine.md` for the optimization-mod note and
 an upstream PR; it is not silently dropped.
 

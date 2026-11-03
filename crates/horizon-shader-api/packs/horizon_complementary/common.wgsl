@@ -111,3 +111,139 @@ fn moon_glow(toward: f32, size: f32) -> f32 {
     let halo = pow(toward, 12.0 / size) * 0.22 + pow(toward, 3.0 / size) * 0.05;
     return core + tight + halo;
 }
+
+
+// ---- Complementary Reimagined (r5.9.3) palette and tonemap, ported to WGSL -----------------------
+// The frame the pack draws into is in vanilla's gamma space, so every colour below is computed in
+// linear light, tonemapped once (cr_tonemap) and handed back gamma-encoded. Nothing downstream
+// applies a second curve.
+override tm_exposure: f32 = 1.0;
+override tm_contrast: f32 = 1.05;
+override tm_white_path: f32 = 1.0;
+override tm_dark_desat: f32 = 0.25;
+
+fn to_linear(c: vec3<f32>) -> vec3<f32> {
+    return pow(max(c, vec3<f32>(0.0)), vec3<f32>(2.2));
+}
+
+fn linear_to_srgb(c: vec3<f32>) -> vec3<f32> {
+    let k = vec3<f32>(0.055);
+    let hi = (vec3<f32>(1.0) + k) * pow(max(c, vec3<f32>(1e-6)), vec3<f32>(1.0 / 2.4)) - k;
+    return select(hi, 12.92 * c, c < vec3<f32>(0.0031308));
+}
+
+// Lottes' tonemap as Complementary modifies it: a contrast curve with a roll-off, a path to white,
+// the dark colours left readable and desaturated a little. Linear in, gamma out.
+fn cr_tonemap(input_color: vec3<f32>) -> vec3<f32> {
+    let color = max(input_color, vec3<f32>(0.0)) * tm_exposure;
+    let initial = luminance(color);
+    let a = tm_contrast;
+    let hdr_max = pow(8.0, a);
+    let mid_in = pow(0.25, a);
+    let mid_out = 0.25;
+    let denom = (hdr_max - mid_in) * mid_out;
+    let b = (hdr_max * mid_out - mid_in) / denom;
+    let cc = (hdr_max * mid_in - hdr_max * mid_out * mid_in) / denom;
+    let pa = pow(max(color, vec3<f32>(1e-6)), vec3<f32>(a));
+    var out = linear_to_srgb(pa / (pa * b + cc));
+
+    let dark_lift = smoothstep(0.1, 0.0, initial);
+    let smooth_color = pow(max(color, vec3<f32>(0.0)), vec3<f32>(1.0 / 2.2));
+    out = mix(out, smooth_color, dark_lift * 0.75 * max(0.55 - abs(1.05 - tm_contrast), 0.0) / 0.55);
+
+    let modified = pow(initial / 16.0, 2.0 - tm_white_path) * 16.0;
+    out = mix(out, vec3<f32>(1.0), smoothstep(0.0, 16.0, modified));
+
+    let desat = smoothstep(0.1, 0.0, initial);
+    out = mix(out, vec3<f32>(luminance(out)), desat * tm_dark_desat);
+    return clamp(out, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
+// Complementary's noonFactor, sunVisibility2 and sunFactor from the sun's height.
+fn cr_noon() -> f32 {
+    return sqrt(max(frame.sun_direction.y, 0.0));
+}
+
+fn cr_sun_vis2() -> f32 {
+    let v = clamp(frame.sun_direction.y + 0.0625, 0.0, 0.125) / 0.125;
+    return v * v;
+}
+
+fn cr_sun_factor() -> f32 {
+    let s = frame.sun_direction.y;
+    return select(clamp(s + 0.03125, 0.0, 0.0625) / 0.0625, clamp(s + 0.375, 0.0, 0.75) / 0.75, s < 0.0);
+}
+
+// Direct light colour on the ground: noon, sunset, night, rain (lightAndAmbientColors.glsl).
+fn cr_light_color() -> vec3<f32> {
+    let noon = cr_noon();
+    let inv_noon = 1.0 - noon;
+    let vis = cr_sun_vis2();
+    let b = frame.brightness;
+    let noon_c = vec3<f32>(0.65, 0.55, 0.375) * 2.05;
+    let sunset_c = pow(vec3<f32>(0.64, 0.45, 0.3), vec3<f32>(1.5 + inv_noon)) * 5.0;
+    let night_c = 0.9 * vec3<f32>(0.15, 0.14, 0.20) * (0.4 + b * 0.4);
+    let clear_c = mix(night_c, mix(sunset_c, noon_c, noon), vis);
+    let day_rain = vec3<f32>(0.21, 0.16, 0.13) * 0.85 + noon * vec3<f32>(0.0, 0.02, 0.06);
+    let night_rain = vec3<f32>(0.03, 0.035, 0.05) * (0.5 + 0.5 * b);
+    let rain_c = mix(night_rain, day_rain * 0.6, vis) * 2.5;
+    return mix(clear_c, rain_c, frame.rain);
+}
+
+// Ambient (sky) light colour.
+fn cr_ambient_color() -> vec3<f32> {
+    let noon = cr_noon();
+    let vis = cr_sun_vis2();
+    let b = frame.brightness;
+    let noon_a = pow(max(frame.sky_color, vec3<f32>(0.0)), vec3<f32>(0.75)) * 0.85;
+    let sunset_a = noon_a * vec3<f32>(1.21, 0.92, 0.76) * 0.95;
+    let night_a = 0.9 * vec3<f32>(0.09, 0.12, 0.17) * (1.55 + b * 0.77);
+    let clear_a = mix(night_a, mix(sunset_a, noon_a, noon), vis);
+    let day_rain = vec3<f32>(0.2, 0.2, 0.25) * (1.8 + 0.5 * b);
+    let night_rain = vec3<f32>(0.16, 0.20, 0.3) * (0.75 + 0.6 * b);
+    let rain_a = mix(night_rain, day_rain * 1.4, vis);
+    return mix(clear_a, rain_a, frame.rain);
+}
+
+// The sky's colour along a ray: Complementary's up / middle / down gradient for noon, sunset and
+// night (skyColors.glsl), linear and untonemapped.
+fn cr_sky(d: vec3<f32>) -> vec3<f32> {
+    let rain = frame.rain;
+    let rain2 = rain * rain;
+    let inv_r2 = (1.0 - rain) * (1.0 - rain);
+    let sc = max(frame.sky_color, vec3<f32>(0.0));
+    let scs = sqrt(sc);
+    let sky_m = mix(max(scs, vec3<f32>(0.63, 0.67, 0.73)), scs, inv_r2);
+    let sky_m2 = mix(max(sc, cr_sun_factor() * vec3<f32>(0.265, 0.295, 0.35)), sc, inv_r2);
+    let noon = cr_noon();
+    let inv_noon2 = (1.0 - noon) * (1.0 - noon);
+
+    let nusc = vec3<f32>(0.1, 0.0, 0.1);
+    let nmsc = vec3<f32>(-0.1, -0.4, -0.6) + vec3<f32>(0.0, 0.06, 0.12) * noon;
+    let ndsc = vec3<f32>(-0.15, -0.3, -0.42) + vec3<f32>(0.0, 0.02, 0.08) * noon;
+    let noon_up = pow(sky_m, vec3<f32>(2.9)) * (vec3<f32>(0.85, 0.92, 0.81) + rain * nusc);
+    let noon_mid = sky_m * (vec3<f32>(1.4, 1.3, 1.3) + rain * nmsc) + noon_up * 0.25;
+    let noon_down = sky_m * (vec3<f32>(0.9) + rain * ndsc) + noon_up * 0.25;
+
+    let sun_up = sky_m2 * (vec3<f32>(0.72, 0.522, 0.47) + vec3<f32>(0.1, 0.2, 0.35) * rain2);
+    let sun_mid = sky_m2 * (vec3<f32>(1.8, 1.3, 1.2) + vec3<f32>(0.15, 0.25, -0.05) * rain2);
+    let sun_down = (vec3<f32>(1.45, 0.86, 0.5) - vec3<f32>(0.8, 0.3, 0.0) * rain) * 0.5 + 0.25 * sun_mid;
+
+    let day_up = mix(noon_up, sun_up, inv_noon2);
+    let day_mid = mix(noon_mid, sun_mid, inv_noon2);
+    let day_down = mix(noon_down, sun_down, inv_noon2);
+
+    let ncf = 0.9 * vec3<f32>(0.07, 0.14, 0.24) * (1.0 - 0.5 * rain) + sc;
+    let night_up = pow(ncf, vec3<f32>(0.9)) * 0.45;
+    let night_mid = sqrt(night_up) * 0.65;
+    let night_down = night_mid * vec3<f32>(0.82, 0.82, 0.88);
+
+    let vis = cr_sun_vis2();
+    let up = mix(night_up, day_up, vis);
+    let mid = mix(night_mid, day_mid, vis);
+    let down = mix(night_down, day_down, vis);
+
+    var col = mix(mid, up, smoothstep(0.0, 0.75, d.y));
+    col = mix(col, down, smoothstep(0.0, 0.35, -d.y));
+    return col;
+}
