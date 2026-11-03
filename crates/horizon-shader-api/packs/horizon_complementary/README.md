@@ -6,19 +6,20 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-Dusk, dawn and night are the focus; 1.6.0 adds the water surface (waves, caustics, rain and swimmer rings). Every light, tint and quality value is a WGSL `override`
+2.0.0 ports Complementary Reimagined (r5.9.3): its noon, sunset and night skies, its sun, moon and ambient light colours, and its Lottes tonemap, applied once in linear light. Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
-- **Atmosphere** (`sky.wgsl`): a bright sun with a hot core and a wide soft halo, a horizon that
-  reddens on the sun's side as it sets, a deeper blue overhead by day, a moon with a soft blue glow
+- **Atmosphere** (`sky.wgsl`): Complementary's up / middle / down sky gradient for noon, sunset and
+  night, driven by the sun's height and the rain, tonemapped once. On top of it a bright sun with a
+  hot core and a wide soft halo, a horizon that reddens on the sun's side as it sets, a moon with a
+  soft blue glow
   and a faint band of light around its side of the sky at night, a drifting cloud deck lit by the
   moon (silver edges, warm undersides at dusk) that thickens and speeds up in rain, and only a
   little haze low in the sky. A one-bit dither removes gradient banding.
-- **Material** (`material.wgsl`): vanilla's lightmap with torch light pulled toward amber, a cool
-  **moonlight** that lights canopy, trunks and hills on a clear night, a blue night ambient with a
-  ground bounce so shadows are deep blue, not black, and a weak warm light from the low sun at dusk.
-  Water keeps vanilla's water texture and adds a **four-wave field** (a long swell, two crossing chop
+- **Material** (`material.wgsl`): Complementary's light — its sun (by day) or moon (by night)
+  as a direct light on what the sky reaches, its noon / sunset / night ambient colours, warm block
+  light and a floor so caves are never black — computed in linear light and tonemapped once. Water keeps vanilla's water texture and adds a **four-wave field** (a long swell, two crossing chop
   trains and a fine ripple) that only tilts the **surface normal**, a **dielectric Fresnel** (about
   2% facing the surface, near total at a grazing angle) with a sky reflection, a **GGX** sun or moon
   glint, and **caustics** — the sun's bright web shimmering on the water by day. **Rain** pricks the
@@ -34,10 +35,12 @@ constant the GPU skips.
 - **Bloom** (`post/bloom.wgsl`): golden-angle spiral taps whose offsets scale with the picture's
   height, so the bloom looks the same at any resolution; a soft knee so the threshold never
   flickers. It is the heaviest pass, so its tap count follows the quality preset.
-- **Grade** (`post/grade.wgsl`): exposure, a filmic (ACES) curve or a gentler shoulder, golden light
-  at sunrise and sunset, a **slow night exposure** and a blue-tinted shadow lift so the dark stays
-  readable without crushing to black, human **night-vision desaturation** (dark regions cool and
-  desaturate, greens stay readable), mid-tone contrast, saturation and a vignette.
+- **Tonemap and grade** (`common.wgsl` + `post/grade.wgsl`): Complementary's Lottes curve runs once
+  in linear light in the sky and material stages, so nothing is curved twice; the grade adds
+  exposure, a gentle S-curve, golden light at sunrise and sunset, a **slow night exposure** and a
+  blue-tinted shadow lift so the dark stays readable without crushing to black, human
+  **night-vision desaturation** (dark regions cool and desaturate, greens stay readable), mid-tone
+  contrast, saturation and a vignette.
 
 Thirty-plus options on Options > Horizon Settings > Shader Packs. Start with **Night quality**
 (Low/Medium/High/Ultra), which caps the Shadows, Bloom and Cloud quality taps at once; the individual

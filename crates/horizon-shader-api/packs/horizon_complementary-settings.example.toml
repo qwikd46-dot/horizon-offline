@@ -46,11 +46,11 @@ bloom_strength = 0.3      # how far it spreads (0..1)
 bloom_quality = 2         # 0=8 taps one ring, 1=two rings, 2=default, 3=32 taps (capped by night_quality)
 
 # --- Grade ---
-exposure = 1.05
-filmic = true             # the ACES filmic curve
-contrast = 1.08
-saturation = 1.18
-warmth = 0.28             # the golden sunrise/sunset tint
+exposure = 1.0
+filmic = true             # a gentle S-curve in gamma space, on top of the tonemap below
+contrast = 1.0
+saturation = 1.0
+warmth = 0.15             # the golden sunrise/sunset tint
 vignette = false
 
 # --- Fog ---
