@@ -30,17 +30,12 @@ pub struct NativePost {
     format: wgpu::TextureFormat,
 }
 
-/// The `frame` every stage of a pack reads (group 3, binding 0), written once a frame. Also the
-/// material stage's `reflection` mirror (bindings 1 and 2): this fork's renderer draws no water
-/// mirror, so it is a 1×1 blank the pack may sample while `frame.has_reflection` is 0.
+/// The `frame` every stage of a pack reads (group 3, binding 0), written once a frame.
 pub struct NativeFrame {
     pub(super) buffer: wgpu::Buffer,
     /// Group 3 of the stages that read only the frame (the sky).
     pub layout: wgpu::BindGroupLayout,
     pub group: wgpu::BindGroup,
-    /// Group 3 of the material stage, which also reads the reflection mirror.
-    pub material_layout: wgpu::BindGroupLayout,
-    pub material_group: wgpu::BindGroup,
     start: std::time::Instant,
     frames: u32,
 }
@@ -79,64 +74,10 @@ impl NativeFrame {
                 resource: buffer.as_entire_binding(),
             }],
         });
-        // The material stage also reads the reflection mirror (bindings 1 and 2); a 1×1 blank
-        // and a clamped bilinear sampler stand in while the renderer draws no mirror.
-        let blank = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Native shader pack reflection (blank)"),
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let view = blank.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Native shader pack reflection"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-        let material_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Native shader pack material"),
-            entries: &[
-                frame_entry(wgpu::ShaderStages::VERTEX_FRAGMENT),
-                texture_entry(1, wgpu::TextureSampleType::Float { filterable: true }),
-                sampler_entry(2),
-            ],
-        });
-        let material_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Native shader pack material"),
-            layout: &material_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-        });
         Self {
             buffer,
             layout,
             group,
-            material_layout,
-            material_group,
             start: std::time::Instant::now(),
             frames: 0,
         }
@@ -475,29 +416,6 @@ pub fn frame_inputs(frame: &Frame, size: [u32; 2], seconds: f32, index: u32) -> 
         },
         frame_index: index,
         hide_gui: u32::from(pack.hide_gui),
-        // The reflection, shadow and mod fields exist so the pack compiles against the API the
-        // shipped game serves; this fork's renderer draws no reflection or shadow map yet.
-        precipitation: 0,
-        temperature: 0.0,
-        downfall: 0.0,
-        wetness: pack.rain,
-        previous_view_projection: m(projection),
-        camera_motion: [0.0; 3],
-        delta_time: 0.0,
-        eye_light_smooth: [level(pack.eye_light[0]), level(pack.eye_light[1])],
-        in_water: if pack.eye_in == 1 { 1.0 } else { 0.0 },
-        in_lava: if pack.eye_in == 2 { 1.0 } else { 0.0 },
-        water_plane: 0.0,
-        has_reflection: 0,
-        reflection_resolution: [size[0] as f32 / 2.0, size[1] as f32 / 2.0],
-        mods: [[0.0; 4]; 8],
-        light_direction: body(frame.sky.sun_angle).to_array(),
-        has_shadow: 0,
-        shadow_view_proj: m(Mat4::IDENTITY),
-        shadow_distance: 0.0,
-        shadow_distortion: 0.0,
-        shadow_resolution: 0.0,
-        shadow_center_texel: 0.0,
     }
 }
 

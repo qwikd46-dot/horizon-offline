@@ -1,12 +1,12 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "2.3.0"
+version = "2.3.1"
 api = "0.1"
-description = "Complementary Reimagined's sky, light, ambient and tonemap, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, screen-space shadows and bloom. Water takes Water Shader Alpha's surface: travelling waves, the game's water mirror and the sun's or moon's glint."
+description = "Complementary Reimagined's sky, light, ambient and tonemap with Glistening Water's surface, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, a travelling-wave water surface with the sun glisten, screen-space shadows and bloom."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
-shared = ["common.wgsl"]
+shared = ["common.wgsl", "water.wgsl"]
 
 [sky]
 file = "sky.wgsl"
@@ -15,10 +15,6 @@ name = "Atmosphere"
 [material]
 file = "material.wgsl"
 name = "Material"
-
-# Draw the water mirror the material stage reads as `reflection` while the option is on.
-[reflection]
-option = "water_reflect_on"
 
 [[post]]
 file = "post/shadows.wgsl"
@@ -182,21 +178,14 @@ step = 0.01
 [[options]]
 id = "water"
 name = "Water effects"
-description = "Waves, the sun or moon highlight and the world's mirror on water."
-type = "bool"
-default = true
-
-[[options]]
-id = "water_reflect_on"
-name = "Water reflections"
-description = "Draw the world's mirror on water. Off saves the mirror pass; water then reflects only the sky's colour."
+description = "Waves, the sun or moon highlight, caustics, the sky reflection and player or mob ripples on water."
 type = "bool"
 default = true
 
 [[options]]
 id = "water_waves"
 name = "Water waves"
-description = "How strong the moving water surface is."
+description = "How strong the moving water surface is. Waves fade out with distance, so far water stays calm."
 type = "float"
 default = 0.5
 min = 0.0
@@ -204,23 +193,53 @@ max = 1.0
 step = 0.02
 
 [[options]]
-id = "water_reflect"
-name = "Water reflection strength"
-description = "How much of the world the water mirrors at grazing angles."
+id = "water_specular"
+name = "Water sun and moon glint"
+description = "How bright the sun's or moon's highlight is on water. Lower is calmer; the highlight also fades out with distance."
 type = "float"
 default = 0.6
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "water_reflect"
+name = "Water reflection"
+description = "How much of the sky the water reflects at grazing angles."
+type = "float"
+default = 0.5
 min = 0.0
 max = 1.0
 step = 0.02
 
 [[options]]
-id = "water_specular"
-name = "Water sun and moon glint"
-description = "How bright the sun's or moon's highlight is on water."
+id = "water_caustics"
+name = "Water caustics"
+description = "The sun's bright web shimmering on the water in daylight, up close only."
 type = "float"
-default = 0.7
+default = 0.5
 min = 0.0
-max = 2.0
+max = 1.0
+step = 0.02
+
+[[options]]
+id = "water_ripples"
+name = "Water ripples"
+description = "How strongly rain pricks the surface and a swimmer leaves rings behind. 0 turns them off."
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.5
+step = 0.02
+
+[[options]]
+id = "water_clarity"
+name = "Water clarity"
+description = "How far light reaches into the water before it turns teal. Low is a milky, shallow-looking surface; high is a deep, clear lake that shows the scene through it."
+type = "float"
+default = 0.75
+min = 0.1
+max = 1.5
 step = 0.05
 
 [[options]]

@@ -1,7 +1,6 @@
 // Every point of a block's surface: vanilla's lightmap, warmed for torch light, lit by the moon at
-// night and the low sun at dusk, a cool sky ambient, and only a little aerial haze. Water's top face
-// takes Water Shader Alpha's surface: waves, the game's water mirror (the `reflection` texture) and
-// the sun's or moon's glint. Horizon applies the alpha test and its own fog
+// night and the low sun at dusk, a cool sky ambient, real waves with a moon glint and a sky
+// reflection on water, and only a little aerial haze. Horizon applies the alpha test and its own fog
 // after this. The pack cannot see a surface normal, so the moon light is hemispheric: what the sky
 // reaches is what the moon lights, and the post pass adds the local shade.
 override fog: bool = true;
@@ -9,27 +8,6 @@ override fog_amount: f32 = 0.1;
 override night_boost: f32 = 0.16;
 override moonlight: f32 = 0.55;
 override sun_strength: f32 = 0.55;
-override water: bool = true;
-override water_reflect_on: bool = true;
-override water_waves: f32 = 0.5;
-override water_reflect: f32 = 0.6;
-override water_specular: f32 = 0.7;
-
-// A travelling-wave normal on the water's top face, world-anchored so the pattern stays put as you
-// walk. Three wave trains at different scales and speeds, summed as slopes, give the crossing swell
-// Water Shader Alpha's surface has without a texture read.
-fn water_normal(world_xz: vec2<f32>, t: f32, strength: f32) -> vec3<f32> {
-    let dirs = array<vec2<f32>, 3>(
-        vec2<f32>(0.86, 0.51), vec2<f32>(-0.42, 0.91), vec2<f32>(0.20, -0.98));
-    let scales = array<f32, 3>(0.42, 0.83, 1.70);
-    let speeds = array<f32, 3>(0.90, 1.30, 2.10);
-    var slope = vec2<f32>(0.0);
-    for (var i = 0; i < 3; i = i + 1) {
-        let phase = dot(world_xz, dirs[i]) * scales[i] + t * speeds[i];
-        slope += dirs[i] * cos(phase) * scales[i];
-    }
-    return normalize(vec3<f32>(slope.x, 0.0, slope.y) * strength + vec3<f32>(0.0, 1.0, 0.0));
-}
 
 fn material(input: MaterialInput) -> Surface {
     let block = input.light.x;
@@ -58,30 +36,66 @@ fn material(input: MaterialInput) -> Surface {
         lit *= mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.78, 0.9, 1.0), smoothstep(0.0, 16.0, length(input.position)));
     }
 
-    // Water's top face: Water Shader Alpha's surface. The engine's water mirror is only there while
-    // `has_reflection` is 1, so without it the surface falls back to the sky's colour; the waves and
-    // the glint read nothing, so they cost no texture fetch.
-    let is_water = water && input.fluid == 1u && input.face == 1u && frame.dimension == 0;
-    if is_water {
+    // Water: the Glistening Water field on a translucent top face in the open sky. The wave field is
+    // world-anchored and tilts the normal (the albedo keeps vanilla's water texture); the surface, the
+    // reflection and the glint all fade out with distance, so far water is a calm sheet instead of a
+    // shimmering pattern.
+    let is_water = input.translucent && sky > 0.8 && block < 0.25 && frame.dimension == 0;
+    if water && is_water {
+        let dist = length(input.position);
         let view = -normalize(input.position + vec3<f32>(0.0, 0.001, 0.0));
+        // Wave and ripple detail is only worth its cost up close; past ~64 blocks the surface is flat.
+        let near = 1.0 - smoothstep(28.0, 64.0, dist);
+        // The wave field is anchored to the world, so it stays put as you walk.
         let world_xz = input.position.xz + frame.camera_position.xz;
-        let nrm = water_normal(world_xz, frame.time, water_waves * 0.6);
-        let fres = clamp(0.02 + 0.98 * pow(1.0 - max(dot(view, nrm), 0.0), 5.0), 0.0, 1.0);
+        var nrm = gw_normal(world_xz, frame.time, water_waves * 0.44 * near, near > 0.5);
+        // The rings only read fields every build of the game has, so the pack loads everywhere:
+        // the rain pricks the surface and a swimmer leaves rings around the camera, both up close.
+        nrm = normalize(nrm + rain_ripples(input.position.xz, frame.rain * water_ripples * near * 0.5));
+        nrm = normalize(nrm + swim_ripples(input.position.xz, water_ripples * near));
 
-        // The mirror where the renderer draws it, else the sky the water would reflect.
-        var reflected = frame.sky_color;
-        if water_reflect_on && frame.has_reflection == 1u {
-            reflected = textureSampleLevel(reflection, reflection_sampler, input.screen, 0.0).rgb;
-        }
-        var water_lit = mix(lit, reflected, fres * water_reflect);
+        let sun_high = max(frame.sun_direction.y, 0.0);
+        let clear = 1.0 - frame.rain;
 
-        // The sun's or moon's glint on the waves: GGX, with the moon also giving a soft broad sheen.
-        let moon = moon_up() * (1.0 - daylight());
-        let sun = daylight() * (1.0 - frame.rain * 0.6);
-        water_lit += specular(nrm, view, frame.sun_direction, 200.0) * sun_color() * sun * water_specular;
-        water_lit += (specular(nrm, view, frame.moon_direction, 120.0) * 0.6
-            + pow(max(dot(nrm, frame.moon_direction), 0.0), 8.0) * 0.18)
-            * moon_color() * moon * water_specular;
+        // Clear freshwater: the longer the light's path through the water the more the red is
+        // absorbed, so the surface drifts from the scene's own colour toward a teal deep. The engine
+        // gives no depth behind the water, so a fixed optical path stands in for the thickness.
+        let optical = 1.8 * water_clarity;
+        let transmission = exp(-vec3<f32>(0.145, 0.032, 0.040) * optical);
+        let scene_illumination = clamp(luminance(lit) * 1.15 + luminance(frame.sky_color) * 0.20, 0.0, 1.0);
+        let deep = vec3<f32>(0.018, 0.095, 0.100) * (0.88 * scene_illumination);
+        var water_lit = lit * transmission + deep * (vec3<f32>(1.0) - transmission);
+
+        // Fresnel at water's index: about 2% facing the surface, near total at a grazing angle, which
+        // is what makes water read as water instead of a bright mirror. The engine exposes no scene
+        // buffer to reflect, so the reflection is the sky's colour.
+        let f0 = 0.02;
+        let fres = clamp(f0 + (1.0 - f0) * pow(1.0 - max(dot(view, nrm), 0.0), 5.0), 0.0, 1.0);
+        let reflected_sky = mix(frame.sky_color, frame.sky_color * 1.15, fres);
+        water_lit = mix(water_lit, reflected_sky, fres * water_reflect * near);
+
+        // The moon on the water: a GGX glint plus a soft broad sheen, broken up by the wave normal.
+        let to_moon = max(dot(nrm, frame.moon_direction), 0.0);
+        water_lit += (ggx_specular(nrm, view, frame.moon_direction, 0.12) * 0.5 + pow(to_moon, 8.0) * 0.18)
+            * moon_color() * moon_up() * n * clear * water_specular * near;
+
+        // The glisten: Glistening Water's sun glitter. The wave normal throws the sun back at the eye,
+        // so the brightest light runs along the sun's road on the water and breaks into sparkle where
+        // the crests tilt. Faded by night, rain, distance and how high the sun is.
+        let reflection_direction = reflect(-view, nrm);
+        let sun_alignment = max(dot(reflection_direction, frame.sun_direction), 0.0);
+        let glisten = gw_glisten_response(sun_alignment);
+        let sky_brightness = clamp(luminance(frame.sky_color) * 1.35, 0.0, 1.0);
+        let daylight_color = mix(vec3<f32>(1.00, 0.72, 0.46), vec3<f32>(1.00, 0.97, 0.88),
+                                 smoothstep(0.0, 0.32, sun_high));
+        let glint = clamp(glisten, 0.0, 0.88) * daylight() * sky_brightness
+            * (1.0 - frame.rain * 0.88) * clamp(water_specular * 1.5, 0.0, 1.5) * near;
+        let glisten_color = daylight_color * mix(1.12, 1.30, smoothstep(0.26, 0.88, glisten));
+        water_lit = mix(water_lit, glisten_color, clamp(glint, 0.0, 0.88));
+
+        // Caustics: the sun's web shimmering on the water, only in daylight and only up close.
+        water_lit += sun_color() * (caustic_pattern(input.position.xz * 1.6, frame.time) * water_caustics
+            * daylight() * clear * sun_high * near * 0.10);
 
         lit = water_lit;
     }

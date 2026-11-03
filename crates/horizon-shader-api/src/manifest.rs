@@ -31,23 +31,10 @@ pub struct Manifest {
     pub shared: Vec<String>,
     pub sky: Option<Stage>,
     pub material: Option<Stage>,
-    /// `[reflection]`: when the water mirror the material stage reads is drawn.
-    pub reflection: Option<Reflection>,
     /// Full-screen passes, in the order they run.
     pub post: Vec<Stage>,
     pub options: Vec<PackOption>,
     pub budget: Budget,
-}
-
-/// `[reflection]`: when Horizon draws the water mirror the material stage reads as
-/// `reflection`. Without it, whenever the stage reads that texture.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct Reflection {
-    /// A bool option's id: the mirror is drawn while it is on; absent, whenever the stage
-    /// reads the texture.
-    #[serde(default)]
-    pub option: Option<String>,
 }
 
 /// One stage: the WGSL file that defines its function.
@@ -112,7 +99,6 @@ struct Raw {
     shared: Vec<String>,
     sky: Option<Stage>,
     material: Option<Stage>,
-    reflection: Option<Reflection>,
     #[serde(default)]
     post: Vec<Stage>,
     #[serde(default)]
@@ -202,26 +188,6 @@ impl Manifest {
             }
             options.push(option);
         }
-        if let Some(reflection) = &raw.reflection {
-            if raw.material.is_none() {
-                return Err(err("a [reflection] needs a [material]".into()));
-            }
-            if let Some(id) = &reflection.option {
-                match options.iter().find(|o| &o.id == id) {
-                    Some(o) if matches!(o.kind, OptionKind::Bool { .. }) => {}
-                    Some(_) => {
-                        return Err(err(format!(
-                            "reflection.option {id:?} is not a bool option"
-                        )));
-                    }
-                    None => {
-                        return Err(err(format!(
-                            "reflection.option {id:?} is not a declared option"
-                        )));
-                    }
-                }
-            }
-        }
         let gpu_ms = match raw.budget.gpu_ms {
             Some(ms) if !(ms > 0.0 && ms <= f64::from(MAX_GPU_MS)) => {
                 return Err(err(format!(
@@ -241,7 +207,6 @@ impl Manifest {
             shared: raw.shared,
             sky: raw.sky,
             material: raw.material,
-            reflection: raw.reflection,
             post: raw.post,
             options,
             budget: Budget { gpu_ms },
