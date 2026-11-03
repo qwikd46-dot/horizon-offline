@@ -28,6 +28,15 @@ struct HorizonMaterialOut {
     @location(5) position: vec3<f32>,
     @location(6) spherical: f32,
     @location(7) cylindrical: f32,
+    @location(8) @interpolate(flat) face: u32,
+    @location(9) @interpolate(flat) fluid: u32,
+    @location(10) @interpolate(flat) tags: u32,
+    @location(11) @interpolate(flat) material: u32,
+    @location(12) normal: vec3<f32>,
+    @location(13) tangent: vec4<f32>,
+    @location(14) emission: f32,
+    @location(15) colored_light: vec3<f32>,
+    @location(16) displaced: f32,
 }
 fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color: vec4<f32>,
     light: vec2<u32>, origin: vec3<f32>) -> HorizonMaterialOut {
@@ -45,6 +54,17 @@ fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color
     out.position = pos;
     out.spherical = length(pos);
     out.cylindrical = max(length(pos.xz), abs(pos.y));
+    // This fork's terrain carries no face, fluid, tag or normal; the fields are filled so the
+    // pack compiles against the shipped game's API, where the renderer sets them for real.
+    out.face = 0u;
+    out.fluid = 0u;
+    out.tags = 0u;
+    out.material = 0u;
+    out.normal = vec3<f32>(0.0, 1.0, 0.0);
+    out.tangent = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    out.emission = 0.0;
+    out.colored_light = vec3<f32>(0.0);
+    out.displaced = 0.0;
     return out;
 }
 @vertex fn horizon_material_vs(
@@ -65,8 +85,11 @@ fn horizon_material_vertex(position: vec3<f32>, uv: vec2<f32>, layer: u32, color
 }
 fn horizon_material_color(in: HorizonMaterialOut, translucent: bool) -> vec4<f32> {
     let albedo = horizon_terrain_sprite(in.uv, in.layer & 0x7fffu);
+    let ndc = in.clip.xy / in.clip.w;
+    let screen = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
     return material(MaterialInput(albedo, in.tint, in.light, in.lightmap, in.position, in.uv,
-        translucent)).color;
+        translucent, in.tags, in.material, screen, in.face, in.fluid, in.emission, in.normal,
+        in.tangent, in.colored_light, in.displaced)).color;
 }
 @fragment fn horizon_material_fs_solid(in: HorizonMaterialOut) -> @location(0) vec4<f32> {
     let color = horizon_material_color(in, false);
@@ -151,7 +174,7 @@ impl NativeMaterial {
                 Default::default();
             groups[0] = Some(shape.globals);
             groups[1] = flat;
-            groups[GROUP as usize] = Some(&frame.layout);
+            groups[GROUP as usize] = Some(&frame.material_layout);
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Native shader pack terrain"),
                 bind_group_layouts: &groups,

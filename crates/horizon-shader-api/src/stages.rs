@@ -68,6 +68,24 @@ const POST_RESOURCES: [Resource; 6] = [
     },
 ];
 
+/// The material stage's resources: the frame, and the water mirror the renderer draws while
+/// `frame.has_reflection` is 1 (docs/api/shaders.md, `[reflection]`).
+const MATERIAL_RESOURCES: [Resource; 3] = [
+    FRAME,
+    Resource {
+        binding: 1,
+        name: "reflection",
+        ty: "var reflection: texture_2d<f32>",
+        doc: "The water mirror: the world as a camera mirrored about the horizontal water plane around the camera (`frame.water_plane`) sees it, at half resolution, mapped like the world's picture, so water samples it at `input.screen`. Drawn only while `frame.has_reflection` is 1; else a 1×1 blank.",
+    },
+    Resource {
+        binding: 2,
+        name: "reflection_sampler",
+        ty: "var reflection_sampler: sampler",
+        doc: "Bilinear filtering, clamped to the edges.",
+    },
+];
+
 /// Functions the post prelude gives packs.
 const POST_HELPERS: &str = "\
 // The world's depth at `uv` (reversed: 0 is the sky).
@@ -116,9 +134,21 @@ struct HorizonMaterialIn {
     @location(4) world: vec3<f32>,
     @location(5) uv: vec2<f32>,
     @location(6) @interpolate(flat) translucent: u32,
+    @location(7) @interpolate(flat) face: u32,
+    @location(8) @interpolate(flat) fluid: u32,
+    @location(9) @interpolate(flat) tags: u32,
+    @location(10) @interpolate(flat) material: u32,
+    @location(11) screen: vec2<f32>,
+    @location(12) normal: vec3<f32>,
+    @location(13) tangent: vec4<f32>,
+    @location(14) emission: f32,
+    @location(15) colored_light: vec3<f32>,
+    @location(16) displaced: f32,
 }
 @fragment fn horizon_fs_material(in: HorizonMaterialIn) -> @location(0) vec4<f32> {
-    let input = MaterialInput(in.albedo, in.tint, in.light, in.lightmap, in.world, in.uv, in.translucent != 0u);
+    let input = MaterialInput(in.albedo, in.tint, in.light, in.lightmap, in.world, in.uv,
+        in.translucent != 0u, in.tags, in.material, in.screen, in.face, in.fluid, in.emission,
+        in.normal, in.tangent, in.colored_light, in.displaced);
     return material(input).color;
 }
 ";
@@ -182,7 +212,8 @@ impl StageKind {
     pub fn resources(self) -> &'static [Resource] {
         match self {
             StageKind::Post => &POST_RESOURCES,
-            StageKind::Sky | StageKind::Material => std::slice::from_ref(&FRAME),
+            StageKind::Material => &MATERIAL_RESOURCES,
+            StageKind::Sky => std::slice::from_ref(&FRAME),
         }
     }
 

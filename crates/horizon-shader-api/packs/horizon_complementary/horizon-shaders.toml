@@ -1,9 +1,9 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "2.2.0"
+version = "2.3.0"
 api = "0.1"
-description = "Complementary Reimagined's sky, light, ambient and tonemap, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, screen-space shadows and bloom. Water is left to a water mod."
+description = "Complementary Reimagined's sky, light, ambient and tonemap, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, screen-space shadows and bloom. Water takes Water Shader Alpha's surface: travelling waves, the game's water mirror and the sun's or moon's glint."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
 shared = ["common.wgsl"]
@@ -15,6 +15,10 @@ name = "Atmosphere"
 [material]
 file = "material.wgsl"
 name = "Material"
+
+# Draw the water mirror the material stage reads as `reflection` while the option is on.
+[reflection]
+option = "water_reflect_on"
 
 [[post]]
 file = "post/shadows.wgsl"
@@ -174,6 +178,50 @@ default = 0.3
 min = 0.0
 max = 1.0
 step = 0.01
+
+[[options]]
+id = "water"
+name = "Water effects"
+description = "Waves, the sun or moon highlight and the world's mirror on water."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_reflect_on"
+name = "Water reflections"
+description = "Draw the world's mirror on water. Off saves the mirror pass; water then reflects only the sky's colour."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_waves"
+name = "Water waves"
+description = "How strong the moving water surface is."
+type = "float"
+default = 0.5
+min = 0.0
+max = 1.0
+step = 0.02
+
+[[options]]
+id = "water_reflect"
+name = "Water reflection strength"
+description = "How much of the world the water mirrors at grazing angles."
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.0
+step = 0.02
+
+[[options]]
+id = "water_specular"
+name = "Water sun and moon glint"
+description = "How bright the sun's or moon's highlight is on water."
+type = "float"
+default = 0.7
+min = 0.0
+max = 2.0
+step = 0.05
 
 [[options]]
 id = "bloom"

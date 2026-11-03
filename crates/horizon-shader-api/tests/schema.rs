@@ -195,6 +195,32 @@ fn reads_the_sample_folder_and_its_package_alike() {
 }
 
 #[test]
+fn reflection_reads_the_option_it_names() {
+    let base = "schema = 1\nid = \"p\"\nname = \"P\"\nversion = \"1\"\napi = \"0.1\"\n\
+        [material]\nfile = \"m.wgsl\"\n\n[[options]]\nid = \"mirror\"\nname = \"Mirror\"\n\
+        type = \"bool\"\ndefault = true\n";
+    let m = Manifest::parse(&format!("{base}[reflection]\noption = \"mirror\"\n")).unwrap();
+    assert_eq!(m.reflection.unwrap().option.as_deref(), Some("mirror"));
+    // A bare section: the mirror is drawn whenever the stage reads the texture.
+    let m = Manifest::parse(&format!("{base}[reflection]\n")).unwrap();
+    assert!(m.reflection.unwrap().option.is_none());
+    // The option must be declared, and be a bool.
+    let e = refused(&format!("{base}[reflection]\noption = \"nope\"\n"));
+    assert!(e.contains("not a declared option"), "{e}");
+    let float = base.replace(
+        "type = \"bool\"\ndefault = true",
+        "type = \"float\"\ndefault = 0.5\nmin = 0.0\nmax = 1.0",
+    );
+    let e = refused(&format!("{float}[reflection]\noption = \"mirror\"\n"));
+    assert!(e.contains("not a bool option"), "{e}");
+    // A reflection needs a material stage to read its texture.
+    let sky_only = "schema = 1\nid = \"p\"\nname = \"P\"\nversion = \"1\"\napi = \"0.1\"\n\
+        [sky]\nfile = \"s.wgsl\"\n[reflection]\n";
+    let e = refused(sky_only);
+    assert!(e.contains("needs a [material]"), "{e}");
+}
+
+#[test]
 fn refuses_files_a_pack_does_not_use() {
     let base = || -> BTreeMap<String, Vec<u8>> { Pack::read(sample_dir()).unwrap().files };
     let mut files = base();

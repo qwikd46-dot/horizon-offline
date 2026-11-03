@@ -51,6 +51,16 @@ One point of a block's surface, for `fn material(input: MaterialInput) -> Surfac
 | `position` | `vec3<f32>` | The point, camera-relative, in blocks. |
 | `uv` | `vec2<f32>` | The texture coordinate inside the block atlas. |
 | `translucent` | `bool` | Drawn in the translucent pass (water, stained glass, ice). |
+| `tags` | `u32` | The pack's sprite tags this surface's sprite has: bit i for the manifest's i-th `[[tags]]`. |
+| `material` | `u32` | The `[[materials]]` id of this surface's sprite (0 when no entry names it). |
+| `screen` | `vec2<f32>` | Where the point is on the screen, 0..1 from the top left (`opaque_depth` and `opaque_color` at `screen * frame.resolution`). |
+| `face` | `u32` | For a fluid, which face of the block the point is on, `Direction` order: 0 down, 1 up, 2 north, 3 south, 4 west, 5 east. 0 elsewhere. |
+| `fluid` | `u32` | 0 not a fluid, 1 water, 2 lava. |
+| `emission` | `f32` | How strongly the block itself shines, 0..1, by its kind of light: a redstone torch or a candle 7/15, a torch or lava 14/15, glowstone 1; 0 for most blocks. |
+| `normal` | `vec3<f32>` | The surface's geometric normal, a unit vector in world axes, facing the camera. |
+| `tangent` | `vec4<f32>` | The surface's tangent: xyz the unit direction in world axes along which `uv.x` grows, w the sign (1 or -1) that makes `cross(normal, tangent.xyz) * tangent.w` the direction `uv.y` grows along (down the texture). |
+| `colored_light` | `vec3<f32>` | The frame's coloured lights at this point (`[[particle_lights]]`, held and dropped items in their `[[lights]]` colour while dynamic lights are on, and mods' visual lights), 0..1, to light the surface with as the pack likes; 0 where none reaches. |
+| `displaced` | `f32` | How much of the relief `[displacement]` gave this point as geometry, 0..1; always 0 without `[displacement]`. |
 
 ### `Surface`
 
@@ -65,6 +75,8 @@ Resources (bind group 3):
 | Binding | Declaration | Meaning |
 | --- | --- | --- |
 | 0 | `var<uniform> frame: Frame` | The frame (`Frame`). |
+| 1 | `var reflection: texture_2d<f32>` | The water mirror: the world as a camera mirrored about the horizontal water plane around the camera (`frame.water_plane`) sees it, at half resolution, mapped like the world's picture, so water samples it at `input.screen`. Drawn only while `frame.has_reflection` is 1; else a 1×1 blank. |
+| 2 | `var reflection_sampler: sampler` | Bilinear filtering, clamped to the edges. |
 
 ## post
 
@@ -134,6 +146,27 @@ The frame, as `frame` in every stage. Positions and directions are in world axes
 | `dimension` | `i32` | 388 | 0 the Overworld, -1 the Nether, 1 the End, 2 any other dimension. |
 | `frame_index` | `u32` | 392 | Frames drawn since the pack was loaded (wraps). |
 | `hide_gui` | `u32` | 396 | 1 while F1 hides the HUD, else 0. |
+| `precipitation` | `u32` | 400 | What falls in the biome at the camera while it rains: 0 nothing, 1 rain, 2 snow. |
+| `temperature` | `f32` | 404 | The biome at the camera's temperature (vanilla's, -0.7..2.0; it snows below 0.15). |
+| `downfall` | `f32` | 408 | The biome at the camera's downfall, 0..1. |
+| `wetness` | `f32` | 412 | `rain`, smoothed: rises over about 30 seconds and dries over about 10, 0..1. |
+| `previous_view_projection` | `mat4x4<f32>` | 416 | Last frame's camera-relative world to clip space (its `projection * view`); a point at camera-relative `p` now was at `p + camera_motion` relative to last frame's camera. This frame's on the first frame and after a gap of over half a second (a pause, a world load), when last frame's camera says nothing about this one. |
+| `camera_motion` | `vec3<f32>` | 480 | How far the camera moved since last frame, in blocks (0 after such a gap). |
+| `delta_time` | `f32` | 492 | Seconds since last frame (0 on the first and after such a gap). |
+| `eye_light_smooth` | `vec2<f32>` | 496 | `eye_light` eased with a half-life of 2 seconds: it follows the light levels' steps without stepping itself (for exposure and indoor fog). |
+| `in_water` | `f32` | 504 | 1 while the camera is in water (`eye_in` 1), eased with a half-life of a quarter second in and out. |
+| `in_lava` | `f32` | 508 | The same for lava (`eye_in` 2). |
+| `water_plane` | `f32` | 512 | The y of the horizontal water plane `reflection` mirrors the world about, in world blocks, while `has_reflection` is 1. |
+| `has_reflection` | `u32` | 516 | 1 while the material stage's `reflection` holds this frame's water mirror, else 0. |
+| `reflection_resolution` | `vec2<f32>` | 520 | The size of `reflection`, in pixels: half the world's picture. |
+| `mods` | `array<vec4<f32>, 8>` | 528 | Eight values a native mod hands its own pack each frame (`native_shader_params`, docs/native-mods.md): what they mean is that mod's, such as where and when something happened in the world. All 0 when no mod sets them. |
+| `light_direction` | `vec3<f32>` | 656 | Unit vector toward the body casting this frame's shadows: the sun by day, the moon by night. |
+| `has_shadow` | `u32` | 668 | 1 while `shadow_map` holds this frame's shadow map, else 0. |
+| `shadow_view_proj` | `mat4x4<f32>` | 672 | Camera-relative world to the shadow camera's clip space, before the distortion (orthographic, looking along `-light_direction`; z 0 at the light, 1 away from it). |
+| `shadow_distance` | `f32` | 736 | Half the side of the square the shadow map covers, in blocks (the manifest's `[shadow] distance`); 0 without a shadow map. |
+| `shadow_distortion` | `f32` | 740 | How strongly the shadow map is distorted toward its centre, 0..1: a point at shadow clip `xy` is stored at `xy / (length(xy) * k + 1 - k)`, so texels near the camera cover less ground (`shadow_position` applies it). |
+| `shadow_resolution` | `f32` | 744 | The shadow map's side, in texels; 0 without a shadow map. |
+| `shadow_center_texel` | `f32` | 748 | The ground one shadow texel covers at the map's centre, in blocks (for a bias that scales with it); 0 without a shadow map. |
 
 ## Options
 

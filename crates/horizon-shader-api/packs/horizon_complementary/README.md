@@ -6,7 +6,7 @@ The launcher writes it into the game's `shaderpacks/` before Play, and the game 
 first run, so it is on Options > Horizon Settings > Shader Packs without downloading anything. The
 launcher also brings an older copy up to date in place, so a pack you never edited updates itself.
 
-2.0.0 ports Complementary Reimagined (r5.9.3): its noon, sunset and night skies, its sun, moon and ambient light colours, and its Lottes tonemap, applied once in linear light. 2.2.0 removes the pack's water surface: a water mod owns water now. Every light, tint and quality value is a WGSL `override`
+2.0.0 ports Complementary Reimagined (r5.9.3): its noon, sunset and night skies, its sun, moon and ambient light colours, and its Lottes tonemap, applied once in linear light. 2.2.0 removes the pack's water surface: a water mod owns water now. 2.3.0 gives water its surface back, after Water Shader Alpha: travelling waves, the game's water mirror (the manifest's `[reflection]` texture) and the sun's or moon's glint, all four under Water options that can be turned off. Every light, tint and quality value is a WGSL `override`
 set on the pack's settings screen, so the look is tuned live and a branch on an option is on a
 constant the GPU skips.
 
@@ -19,7 +19,10 @@ constant the GPU skips.
   little haze low in the sky. A one-bit dither removes gradient banding.
 - **Material** (`material.wgsl`): Complementary's light — its sun (by day) or moon (by night)
   as a direct light on what the sky reaches, its noon / sunset / night ambient colours, warm block
-  light and a floor so caves are never black — computed in linear light and tonemapped once. Water is left to a water mod (its surface, waves and reflections). Only a little aerial haze, and only in the last stretch before the far plane.
+  light and a floor so caves are never black — computed in linear light and tonemapped once. Water's
+  top face takes Water Shader Alpha's surface: three travelling wave trains make the normal, the
+  game's mirror (`[reflection]`) is mixed in by a Fresnel term, and the sun or moon gives a GGX
+  glint. Only a little aerial haze, and only in the last stretch before the far plane.
 - **Shadows** (`post/shadows.wgsl`): screen-space ambient occlusion and contact shadows from the
   depth already in the picture (the engine has none of its own): the dark seam where surfaces meet
   and the soft shade under objects. The taps are taken at a small, **clamped screen radius** with a

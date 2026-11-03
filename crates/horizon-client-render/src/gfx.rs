@@ -4778,7 +4778,7 @@ impl Renderer {
             .native
             .as_ref()
             .filter(|_| !frame.title)
-            .and_then(|n| Some((n.material.as_ref()?, &n.frame.group)));
+            .and_then(|n| Some((n.material.as_ref()?, &n.frame.material_group)));
         let solid_pipeline = material.map_or(&self.solid, |(m, _)| &m.solid);
         let translucent_pipeline = material.map_or(&self.translucent, |(m, _)| &m.translucent);
         let pack_flat = material.and_then(|(m, _)| m.flat.as_ref());
