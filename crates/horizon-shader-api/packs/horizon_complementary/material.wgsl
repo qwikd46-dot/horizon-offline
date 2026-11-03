@@ -1,6 +1,6 @@
 // Every point of a block's surface: vanilla's lightmap, warmed for torch light, lit by the moon at
-// night and the low sun at dusk, a cool sky ambient, real waves with a moon glint and a sky
-// reflection on water, and only a little aerial haze. Horizon applies the alpha test and its own fog
+// night and the low sun at dusk, a cool sky ambient, and only a little aerial haze. Water is left
+// to a water mod. Horizon applies the alpha test and its own fog
 // after this. The pack cannot see a surface normal, so the moon light is hemispheric: what the sky
 // reaches is what the moon lights, and the post pass adds the local shade.
 override fog: bool = true;
@@ -36,69 +36,8 @@ fn material(input: MaterialInput) -> Surface {
         lit *= mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.78, 0.9, 1.0), smoothstep(0.0, 16.0, length(input.position)));
     }
 
-    // Water: the Glistening Water field on a translucent top face in the open sky. The wave field is
-    // world-anchored and tilts the normal (the albedo keeps vanilla's water texture); the surface, the
-    // reflection and the glint all fade out with distance, so far water is a calm sheet instead of a
-    // shimmering pattern.
-    let is_water = input.translucent && sky > 0.8 && block < 0.25 && frame.dimension == 0;
-    if water && is_water {
-        let dist = length(input.position);
-        let view = -normalize(input.position + vec3<f32>(0.0, 0.001, 0.0));
-        // Wave and ripple detail is only worth its cost up close; past ~64 blocks the surface is flat.
-        let near = 1.0 - smoothstep(28.0, 64.0, dist);
-        // The wave field is anchored to the world, so it stays put as you walk.
-        let world_xz = input.position.xz + frame.camera_position.xz;
-        var nrm = gw_normal(world_xz, frame.time, water_waves * 0.44 * near, near > 0.5);
-        // The rings only read fields every build of the game has, so the pack loads everywhere:
-        // the rain pricks the surface and a swimmer leaves rings around the camera, both up close.
-        nrm = normalize(nrm + rain_ripples(input.position.xz, frame.rain * water_ripples * near * 0.5));
-        nrm = normalize(nrm + swim_ripples(input.position.xz, water_ripples * near));
-
-        let sun_high = max(frame.sun_direction.y, 0.0);
-        let clear = 1.0 - frame.rain;
-
-        // Clear freshwater: the longer the light's path through the water the more the red is
-        // absorbed, so the surface drifts from the scene's own colour toward a teal deep. The engine
-        // gives no depth behind the water, so a fixed optical path stands in for the thickness.
-        let optical = 1.8 * water_clarity;
-        let transmission = exp(-vec3<f32>(0.145, 0.032, 0.040) * optical);
-        let scene_illumination = clamp(luminance(lit) * 1.15 + luminance(frame.sky_color) * 0.20, 0.0, 1.0);
-        let deep = vec3<f32>(0.018, 0.095, 0.100) * (0.88 * scene_illumination);
-        var water_lit = lit * transmission + deep * (vec3<f32>(1.0) - transmission);
-
-        // Fresnel at water's index: about 2% facing the surface, near total at a grazing angle, which
-        // is what makes water read as water instead of a bright mirror. The engine exposes no scene
-        // buffer to reflect, so the reflection is the sky's colour.
-        let f0 = 0.02;
-        let fres = clamp(f0 + (1.0 - f0) * pow(1.0 - max(dot(view, nrm), 0.0), 5.0), 0.0, 1.0);
-        let reflected_sky = mix(frame.sky_color, frame.sky_color * 1.15, fres);
-        water_lit = mix(water_lit, reflected_sky, fres * water_reflect * near);
-
-        // The moon on the water: a GGX glint plus a soft broad sheen, broken up by the wave normal.
-        let to_moon = max(dot(nrm, frame.moon_direction), 0.0);
-        water_lit += (ggx_specular(nrm, view, frame.moon_direction, 0.12) * 0.5 + pow(to_moon, 8.0) * 0.18)
-            * moon_color() * moon_up() * n * clear * water_specular * near;
-
-        // The glisten: Glistening Water's sun glitter. The wave normal throws the sun back at the eye,
-        // so the brightest light runs along the sun's road on the water and breaks into sparkle where
-        // the crests tilt. Faded by night, rain, distance and how high the sun is.
-        let reflection_direction = reflect(-view, nrm);
-        let sun_alignment = max(dot(reflection_direction, frame.sun_direction), 0.0);
-        let glisten = gw_glisten_response(sun_alignment);
-        let sky_brightness = clamp(luminance(frame.sky_color) * 1.35, 0.0, 1.0);
-        let daylight_color = mix(vec3<f32>(1.00, 0.72, 0.46), vec3<f32>(1.00, 0.97, 0.88),
-                                 smoothstep(0.0, 0.32, sun_high));
-        let glint = clamp(glisten, 0.0, 0.88) * daylight() * sky_brightness
-            * (1.0 - frame.rain * 0.88) * clamp(water_specular * 1.5, 0.0, 1.5) * near;
-        let glisten_color = daylight_color * mix(1.12, 1.30, smoothstep(0.26, 0.88, glisten));
-        water_lit = mix(water_lit, glisten_color, clamp(glint, 0.0, 0.88));
-
-        // Caustics: the sun's web shimmering on the water, only in daylight and only up close.
-        water_lit += sun_color() * (caustic_pattern(input.position.xz * 1.6, frame.time) * water_caustics
-            * daylight() * clear * sun_high * near * 0.10);
-
-        lit = water_lit;
-    }
+    // Water is left to a water mod (it owns the surface, its waves and its reflections); this stage
+    // only lights the block, so water keeps vanilla's albedo and lightmap.
 
     // Aerial haze: distant land drifts toward the fog colour, but only near the far plane so the
     // middle distance stays clear, and toward the sky colour so the horizon never goes flat.

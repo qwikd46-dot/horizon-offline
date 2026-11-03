@@ -45,10 +45,6 @@ const COMPLEMENTARY: Builtin = Builtin {
             include_str!("../packs/horizon_complementary/common.wgsl"),
         ),
         (
-            "water.wgsl",
-            include_str!("../packs/horizon_complementary/water.wgsl"),
-        ),
-        (
             "sky.wgsl",
             include_str!("../packs/horizon_complementary/sky.wgsl"),
         ),
