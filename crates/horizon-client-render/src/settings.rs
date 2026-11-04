@@ -309,8 +309,8 @@ impl Settings {
     /// its settings page and Options > Mods, and no resource pack is installed.
     /// A pack can replace an opaque block's model or texture, which breaks the
     /// entity occlusion the optimizer adds (`game/entity_culling.rs`), so with
-    /// one installed the optimizer is off: it adds nothing and only lies about
-    /// Far Detail. The game reads this through the same predicate
+    /// one installed neither its entity culling nor its reduced far detail runs.
+    /// The game reads this through the same predicate
     /// (`Game::native_optimizer_enabled`); keeping it here lets the settings
     /// screen and agent state report what the renderer actually draws.
     pub fn native_optimizer_enabled(&self) -> bool {
@@ -792,23 +792,23 @@ pub enum Opt {
 mod tests {
     use super::*;
     #[test]
-    fn optimizer_forces_full_far_detail_only_when_it_runs() {
+    fn optimizer_uses_reduced_far_detail_only_when_it_runs() {
         use crate::graphics::FarDetail;
         let mut s = Settings::default();
-        s.horizon.far_detail = FarDetail::Reduced;
+        s.horizon.far_detail = FarDetail::Full;
         s.horizon.native_optimizer = true;
-        // Vanilla: the optimizer runs, so the renderer draws Full.
+        // Vanilla: entity occlusion and reduced far terrain detail both run.
         assert!(s.native_optimizer_enabled());
-        assert_eq!(s.effective_far_detail(), FarDetail::Full);
-        // Turned off in Options > Mods: the player's Reduced stands.
+        assert_eq!(s.effective_far_detail(), FarDetail::Reduced);
+        // Turned off in Options > Mods: the player's Full detail stands.
         s.mods.disabled.insert("horizon_optimizer".into());
         assert!(!s.native_optimizer_enabled());
-        assert_eq!(s.effective_far_detail(), FarDetail::Reduced);
+        assert_eq!(s.effective_far_detail(), FarDetail::Full);
         // On again, but a resource pack breaks the occlusion: no override.
         s.mods.disabled.clear();
         s.resource_packs.push("faithful".into());
         assert!(!s.native_optimizer_enabled());
-        assert_eq!(s.effective_far_detail(), FarDetail::Reduced);
+        assert_eq!(s.effective_far_detail(), FarDetail::Full);
     }
     #[test]
     fn an_option_set_keeps_horizon_files() {

@@ -7,10 +7,10 @@ RETURN, MODIFY_ARG, OVERWRITE...; the tool's README lists them). A port such as 
 one module. Start a mod from [horizon-native-mod-template](https://github.com/horizon-rust/horizon-native-mod-template).
 
 The game also registers **Horizon Optimizer** (`horizon_optimizer`) as a built-in native mod in
-`crates/horizon-client/src/game/native_hooks.rs`. Its optimization setting is off by default. When enabled, it culls
-entities hidden by opaque terrain and keeps far terrain on `Full` detail; it never selects the geometry-reducing
-`Reduced` far-detail path. The existing textured far-terrain mesher remains in use; the old standalone optimizer
-bundle and its overlay-build workflow are no longer used.
+`crates/horizon-client/src/game/native_hooks.rs`. Its optimization setting is off by default. When enabled without a
+resource pack, it culls entities hidden by opaque terrain and selects `Reduced` far detail, which submits fewer far
+terrain quads. A resource pack disables both additions because its models may not match the occlusion data. The old
+standalone optimizer bundle and its overlay-build workflow are no longer used.
 
 Registry native mods are native code with the player's rights, not sandboxed. The launcher turns those bundles on only
 when the player installs one (after a notice) and builds them only behind a red warning; the registry lists one only
