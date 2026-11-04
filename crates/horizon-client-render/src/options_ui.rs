@@ -1306,7 +1306,10 @@ impl OptionsUi {
     }
     fn settings_search_active(&self) -> bool {
         self.settings_search.focused
-            && matches!(self.page(), Page::Video | Page::Controls | Page::KeyBinds)
+            && matches!(
+                self.page(),
+                Page::Video | Page::Controls | Page::KeyBinds | Page::Mods
+            )
     }
     pub fn page(&self) -> Page {
         *self.stack.last().unwrap_or(&Page::Main)
@@ -1370,7 +1373,10 @@ impl OptionsUi {
         self.stack.push(page);
         self.scroll = 0.0;
         self.scrollbar_drag_y = None;
-        if matches!(page, Page::Video | Page::Controls | Page::KeyBinds) {
+        if matches!(
+            page,
+            Page::Video | Page::Controls | Page::KeyBinds | Page::Mods
+        ) {
             self.settings_search.set_value("");
             self.settings_search.focused = false;
         }
@@ -1480,6 +1486,9 @@ impl OptionsUi {
             return Vec::new();
         };
         let mut rows = vec![Row::Note(m.title.clone())];
+        if !m.description.trim().is_empty() {
+            rows.push(Row::Note(m.description.clone()));
+        }
         let Some(page) = &m.native else {
             return rows;
         };
@@ -1790,40 +1799,61 @@ impl OptionsUi {
                 if s.mods.installed.is_empty() {
                     return vec![Row::Header("horizon.mods.empty")];
                 }
-                s.mods
+                let query = self.settings_search.value.to_lowercase();
+                let mut installed: Vec<_> = s
+                    .mods
                     .installed
                     .iter()
                     .enumerate()
-                    .map(|(i, installed)| {
-                        let mut label = Text::literal(format!("{}: ", installed.title))
-                            .append(on_off(s.mods.is_on(i)));
-                        if installed.problem.is_some() {
-                            label = label.append(tr("horizon.mods.stopped"));
-                        } else if installed.dev {
-                            label = label.append(tr("horizon.mods.dev"));
-                        }
-                        let dead = installed.dev || installed.id.is_empty();
-                        // A native mod gets its settings page's button beside
-                        // the toggle.
-                        if installed.native.is_some() {
-                            let toggle = button(0.0, 0.0, 150.0, label, Act::ToggleMod(i));
-                            let settings = button(
-                                0.0,
-                                0.0,
-                                150.0,
-                                tr("horizon.mods.settings"),
-                                Act::ModSettings(i),
-                            );
-                            Row::Buttons(
-                                if dead { inactive(toggle) } else { toggle },
-                                Some(settings),
-                            )
-                        } else {
-                            let widget = button(0.0, 0.0, 310.0, label, Act::ToggleMod(i));
-                            Row::Buttons(if dead { inactive(widget) } else { widget }, None)
-                        }
+                    .filter(|(_, installed)| {
+                        query.is_empty()
+                            || installed.title.to_lowercase().contains(&query)
+                            || installed.id.to_lowercase().contains(&query)
+                            || installed.description.to_lowercase().contains(&query)
+                            || installed
+                                .problem
+                                .as_ref()
+                                .is_some_and(|problem| problem.to_lowercase().contains(&query))
                     })
-                    .collect()
+                    .collect();
+                installed.sort_by(|(_, a), (_, b)| {
+                    a.title
+                        .to_lowercase()
+                        .cmp(&b.title.to_lowercase())
+                        .then_with(|| a.id.cmp(&b.id))
+                });
+                if installed.is_empty() {
+                    return vec![Row::Header("horizon.mods.no_matches")];
+                }
+                let mut rows = Vec::with_capacity(installed.len() * 2);
+                for (i, installed) in installed {
+                    let mut label = Text::literal(format!("{}: ", installed.title))
+                        .append(on_off(s.mods.is_on(i)));
+                    if installed.problem.is_some() {
+                        label = label.append(tr("horizon.mods.stopped"));
+                    } else if installed.dev {
+                        label = label.append(tr("horizon.mods.dev"));
+                    }
+                    let dead = installed.dev || installed.id.is_empty();
+                    // A native mod gets its settings page's button beside
+                    // the toggle.
+                    let row = if installed.native.is_some() {
+                        let toggle = button(0.0, 0.0, 150.0, label, Act::ToggleMod(i));
+                        let settings = button(
+                            0.0,
+                            0.0,
+                            150.0,
+                            tr("horizon.mods.settings"),
+                            Act::ModSettings(i),
+                        );
+                        Row::Buttons(if dead { inactive(toggle) } else { toggle }, Some(settings))
+                    } else {
+                        let widget = button(0.0, 0.0, 310.0, label, Act::ToggleMod(i));
+                        Row::Buttons(if dead { inactive(widget) } else { widget }, None)
+                    };
+                    rows.push(row);
+                }
+                rows
             }
             Page::NativeMod(i) => self.native_rows(s, i),
             Page::ShaderPacks => {
@@ -1857,7 +1887,10 @@ impl OptionsUi {
         let mut out = Vec::new();
         let page = self.page();
         let cx = (w / 2.0).floor();
-        if matches!(page, Page::Video | Page::Controls | Page::KeyBinds) {
+        if matches!(
+            page,
+            Page::Video | Page::Controls | Page::KeyBinds | Page::Mods
+        ) {
             self.settings_search.x = cx - 100.0;
             self.settings_search.y = 17.0;
         }
@@ -2242,12 +2275,12 @@ impl OptionsUi {
             // Drawn by `pack_screen`.
             Page::Packs => {}
             _ => {
-                if matches!(page, Page::Video | Page::Controls) {
+                if matches!(page, Page::Video | Page::Controls | Page::Mods) {
                     top = 38.0;
                 }
                 out.push(Widget {
                     x: 0.0,
-                    y: if matches!(page, Page::Video | Page::Controls) {
+                    y: if matches!(page, Page::Video | Page::Controls | Page::Mods) {
                         4.0
                     } else {
                         12.0
@@ -2612,13 +2645,21 @@ impl OptionsUi {
             }
             self.language_search = search;
         }
-        if matches!(self.page(), Page::Video | Page::Controls | Page::KeyBinds) {
+        if matches!(
+            self.page(),
+            Page::Video | Page::Controls | Page::KeyBinds | Page::Mods
+        ) {
             let mut search = self.settings_search.clone();
             search.draw(batch, atlas, None);
             if search.value.is_empty() && !search.focused {
+                let placeholder = if self.page() == Page::Mods {
+                    "horizon.mods.search"
+                } else {
+                    "horizon.options.search"
+                };
                 batch.text_styled(
                     atlas,
-                    &tr("horizon.options.search").with_color(text::GRAY).italic(),
+                    &tr(placeholder).with_color(text::GRAY).italic(),
                     search.text_x(),
                     search.text_y(),
                     u32::MAX,
@@ -2712,7 +2753,12 @@ impl OptionsUi {
         }
         let (widgets, top, bottom, content) = self.layout(s, size.0, size.1);
         let mut events = Vec::new();
-        if !drag && matches!(self.page(), Page::Video | Page::Controls | Page::KeyBinds) {
+        if !drag
+            && matches!(
+                self.page(),
+                Page::Video | Page::Controls | Page::KeyBinds | Page::Mods
+            )
+        {
             let search = &mut self.settings_search;
             search.focused = ui::hovered((x, y), search.x, search.y, search.width, search.height);
             if search.focused {
@@ -3564,7 +3610,14 @@ mod tests {
             })
             .collect();
         assert_eq!(rows.len(), 3);
-        for (i, row) in rows.iter().enumerate() {
+        for row in &rows {
+            let WKind::Button {
+                act: Act::ToggleMod(mod_index),
+                ..
+            } = &row.kind
+            else {
+                unreachable!();
+            };
             let events = ui.click(
                 &mut s,
                 &atlas,
@@ -3575,7 +3628,7 @@ mod tests {
                 false,
                 false,
             );
-            if i == 0 {
+            if *mod_index == 0 {
                 assert!(events.contains(&Event::Changed));
                 assert!(events.contains(&Event::ButtonClick));
             } else {
@@ -3586,7 +3639,18 @@ mod tests {
         assert!(s.mods.is_on(1));
         assert!(!s.mods.is_on(2));
         assert_eq!(s.mods.serialize(), "mod.normal:true\n");
-        let row = rows[0];
+        let row = rows
+            .iter()
+            .find(|row| {
+                matches!(
+                    row.kind,
+                    WKind::Button {
+                        act: Act::ToggleMod(0),
+                        ..
+                    }
+                )
+            })
+            .unwrap();
         ui.click(
             &mut s,
             &atlas,
@@ -3603,6 +3667,63 @@ mod tests {
     }
 
     #[test]
+    fn mods_page_searches_descriptions_and_sorts_mods_by_name() {
+        let mut s = Settings::default();
+        let mut ui = OptionsUi::default();
+        ui.show(Page::Mods);
+        s.mods.installed = vec![
+            crate::mod_list::Installed {
+                id: "zulu_overlay".into(),
+                title: "Zulu Overlay".into(),
+                description: "Shows a compact status panel.".into(),
+                problem: None,
+                dev: false,
+                native: None,
+            },
+            crate::mod_list::Installed {
+                id: "entity_culling".into(),
+                title: "Entity Culling".into(),
+                description: "Skips drawing mobs hidden by solid terrain.".into(),
+                problem: None,
+                dev: false,
+                native: None,
+            },
+        ];
+
+        let toggle_indices = |rows: &[Row]| {
+            rows.iter()
+                .filter_map(|row| match row {
+                    Row::Buttons(
+                        Widget {
+                            kind:
+                                WKind::Button {
+                                    act: Act::ToggleMod(i),
+                                    ..
+                                },
+                            ..
+                        },
+                        _,
+                    ) => Some(*i),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(toggle_indices(&ui.list_rows(&s)), [1, 0]);
+
+        ui.settings_search.set_value("terrain");
+        ui.settings_search.focused = true;
+        assert!(ui.settings_search_active());
+        let rows = ui.list_rows(&s);
+        assert_eq!(toggle_indices(&rows), [1]);
+
+        ui.settings_search.set_value("not installed");
+        assert!(matches!(
+            ui.list_rows(&s).as_slice(),
+            [Row::Header("horizon.mods.no_matches")]
+        ));
+    }
+
+    #[test]
     fn opening_a_native_mods_page_asks_the_game_for_its_labels_again() {
         let atlas = atlas();
         let mut s = Settings::default();
@@ -3611,7 +3732,7 @@ mod tests {
         s.mods.installed.push(crate::mod_list::Installed {
             id: "native".into(),
             title: "Native 1.0".into(),
-            description: String::new(),
+            description: "Enables entity occlusion and reduced far terrain detail.".into(),
             problem: None,
             dev: false,
             native: Some(crate::mod_list::NativePage::default()),
@@ -3643,6 +3764,10 @@ mod tests {
         // Its labels were made with the list, maybe in another language.
         assert_eq!(events.last(), Some(&Event::NativeSettings(0)));
         assert_eq!(ui.page(), Page::NativeMod(0));
+        assert!(ui.list_rows(&s).iter().any(|row| matches!(
+            row,
+            Row::Note(description) if description.contains("reduced far terrain detail")
+        )));
     }
 
     #[test]
