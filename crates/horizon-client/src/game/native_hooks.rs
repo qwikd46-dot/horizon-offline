@@ -45,7 +45,7 @@ fn optimizer_mod() -> NativeMod {
     NativeMod {
         id: OPTIMIZER_ID.into(),
         title: "Horizon Optimizer".into(),
-        description: "Cull entities hidden by terrain and keep distant terrain at Full detail."
+        description: "Cull terrain-hidden entities and simplify far terrain when LODs are enabled."
             .into(),
         ..NativeMod::default()
     }
@@ -376,8 +376,8 @@ impl Game<'_> {
     pub(super) fn native_optimizer_enabled(&self) -> bool {
         self.settings.native_optimizer_enabled()
     }
-    /// Far detail as the renderer draws it, with the optimizer's override:
-    /// the player's pick, forced Full only while the optimizer runs.
+    /// Far detail as the renderer draws it, with the optimizer's Reduced
+    /// detail override while it runs.
     pub(super) fn native_far_detail(&self) -> FarDetail {
         self.settings.effective_far_detail()
     }
@@ -700,7 +700,7 @@ mod tests {
         let native = &mods[0];
         assert_eq!(native.id, "horizon_optimizer");
         assert_eq!(native.title, "Horizon Optimizer");
-        assert!(native.description.contains("Full detail"));
+        assert!(native.description.contains("simplify far terrain"));
         assert_eq!(
             optimizer_settings(false),
             [String::from("Optimization: Off")]
@@ -712,17 +712,16 @@ mod tests {
     }
 
     #[test]
-    fn optimizer_keeps_reduced_far_detail_off_its_render_path() {
+    fn optimizer_selects_reduced_far_detail_for_performance() {
         use horizon_client::graphics::effective_far_detail;
         assert_eq!(
             effective_far_detail(FarDetail::Reduced, false),
             FarDetail::Reduced
         );
         assert_eq!(
-            effective_far_detail(FarDetail::Reduced, true),
-            FarDetail::Full
+            effective_far_detail(FarDetail::Full, true),
+            FarDetail::Reduced
         );
-        assert_eq!(effective_far_detail(FarDetail::Full, true), FarDetail::Full);
     }
 
     /// horizon-mixins refuses targets whose body has a `cfg` or a macro:

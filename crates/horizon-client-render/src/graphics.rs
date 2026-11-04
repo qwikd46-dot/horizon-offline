@@ -246,13 +246,16 @@ impl FarDetail {
     }
 }
 
-/// The far detail the renderer draws: `selected`, forced Full while the
+/// The far detail the renderer draws: `selected`, forced Reduced while the
 /// built-in optimizer runs. The optimizer only runs on vanilla packs
 /// (`Settings::native_optimizer_enabled`), where its entity occlusion works;
-/// with a pack it is off, so the player's Reduced stands and the setting
-/// does not lie.
+/// with a pack it is off, so the player's choice stands.
 pub fn effective_far_detail(selected: FarDetail, optimizer: bool) -> FarDetail {
-    if optimizer { FarDetail::Full } else { selected }
+    if optimizer {
+        FarDetail::Reduced
+    } else {
+        selected
+    }
 }
 
 /// TAA upscaling: the world renders this much smaller than the resolution scale's size,
@@ -361,7 +364,7 @@ pub struct Graphics {
     pub lod_distance: u32,
     /// How finely far terrain is drawn; Full unless the player picks Reduced.
     pub far_detail: FarDetail,
-    /// Opt into the built-in optimizer's entity occlusion and Full far detail.
+    /// Opt into the built-in optimizer's entity occlusion and Reduced far detail.
     pub native_optimizer: bool,
     /// Skip sections hidden behind closed ones (vanilla's occlusion graph).
     pub cave_culling: bool,
