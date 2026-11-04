@@ -1,4 +1,4 @@
-# Horizon Complementary 2.1.0 - Complementary Reimagined port with Glistening Water
+# Horizon Complementary 2.5.0 - Complementary-inspired lighting and animated blue water
 #
 # This file documents every option. The game keeps your real values in options.txt; set them on
 # Options > Horizon Settings > Shader Packs > Horizon Complementary. Nothing here is read by the
@@ -32,14 +32,12 @@ moon_glow_amount = 0.8    # the moon's soft halo (0..2)
 clouds = true             # the atmospheric cloud layer
 cloud_quality = 2         # 0 = one noise octave (fastest), 2 = two octaves (capped by night_quality)
 
-# --- Water (Glistening Water V1.1) ---
-water = true              # the wave surface, the sun glisten, caustics, reflection and ripples
-water_waves = 0.5         # how strong the moving surface is (0..1)
-water_specular = 0.6      # the sun glisten and the moon glint (0..2); lower is calmer
-water_reflect = 0.5       # the sky reflection at grazing angles (0..1)
-water_caustics = 0.5      # the sun's web on the water in daylight (0..1)
-water_ripples = 0.6       # rain and swimmer rings (0..1.5)
-water_clarity = 0.75      # how far light reaches into the water before it turns teal (0.1..1.5)
+# --- Water ---
+water = true              # travelling surface waves, soft highlights and sky reflection
+water_waves = 0.8         # wave height, slope and subtle moving colour (0..1)
+water_specular = 0.4      # sun and moon highlights (0..2); lower is calmer
+water_reflect = 0.3       # the sky reflection at grazing angles (0..1)
+water_clarity = 1.1       # higher values reduce the blue absorption tint (0.1..1.5)
 
 # --- Bloom ---
 bloom = true
