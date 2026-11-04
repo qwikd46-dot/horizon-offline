@@ -19,7 +19,10 @@ constant the GPU skips.
   little haze low in the sky. A one-bit dither removes gradient banding.
 - **Material** (`material.wgsl`): Complementary's light — its sun (by day) or moon (by night)
   as a direct light on what the sky reaches, its noon / sunset / night ambient colours, warm block
-  light and a floor so caves are never black — computed in linear light and tonemapped once. Water keeps vanilla's water texture and adds **Glistening Water V1.1**: a **nine-wave Gerstner field**
+  light and a floor so caves are never black — computed in linear light and tonemapped once. Water is
+  shaded as **crystal-clear water**: vanilla's streaky water texture is dropped and the surface reads
+  as a clean pane tinted only by the little light the water absorbs on the way through, over
+  **Glistening Water V1.1**: a **nine-wave Gerstner field**
   (six lake-scale swells and three capillary ripples) whose components each travel at the real
   deep-water speed (`sqrt(g * k)`), so the crests move at the right rate and drift past each other
   instead of locking into a repeating grid. The field is anchored to the world, so it stays put as you

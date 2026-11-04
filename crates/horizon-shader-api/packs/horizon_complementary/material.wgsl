@@ -36,10 +36,10 @@ fn material(input: MaterialInput) -> Surface {
         lit *= mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.78, 0.9, 1.0), smoothstep(0.0, 16.0, length(input.position)));
     }
 
-    // Water: the Glistening Water field on a translucent top face in the open sky. The wave field is
-    // world-anchored and tilts the normal (the albedo keeps vanilla's water texture); the surface, the
-    // reflection and the glint all fade out with distance, so far water is a calm sheet instead of a
-    // shimmering pattern.
+    // Water: the Glistening Water field on a translucent top face in the open sky, shaded as clean,
+    // crystal-clear water (vanilla's water texture is dropped). The wave field is world-anchored and
+    // tilts the normal; the surface, the reflection and the glint all fade out with distance, so far
+    // water is a calm sheet instead of a shimmering pattern.
     let is_water = input.translucent && sky > 0.8 && block < 0.25 && frame.dimension == 0;
     if water && is_water {
         let dist = length(input.position);
@@ -57,14 +57,19 @@ fn material(input: MaterialInput) -> Surface {
         let sun_high = max(frame.sun_direction.y, 0.0);
         let clear = 1.0 - frame.rain;
 
-        // Clear freshwater: the longer the light's path through the water the more the red is
-        // absorbed, so the surface drifts from the scene's own colour toward a teal deep. The engine
-        // gives no depth behind the water, so a fixed optical path stands in for the thickness.
-        let optical = 1.8 * water_clarity;
-        let transmission = exp(-vec3<f32>(0.145, 0.032, 0.040) * optical);
-        let scene_illumination = clamp(luminance(lit) * 1.15 + luminance(frame.sky_color) * 0.20, 0.0, 1.0);
-        let deep = vec3<f32>(0.018, 0.095, 0.100) * (0.88 * scene_illumination);
-        var water_lit = lit * transmission + deep * (vec3<f32>(1.0) - transmission);
+        // Crystal-clear water: vanilla's streaky water texture is dropped and the surface is shaded
+        // as clean water instead. Most of the light that enters scatters straight back out as the
+        // sky's colour, and only the little absorbed on the way turns the water teal, so it reads as
+        // a clear pane rather than a textured sheet. The engine gives no depth behind the water, so a
+        // fixed optical path stands in for the thickness. A touch of the block's own light keeps it
+        // sitting in the scene at dusk and under the moon.
+        let optical = 1.4 * water_clarity;
+        let transmission = exp(-vec3<f32>(0.115, 0.026, 0.032) * optical);
+        let sky_hue = frame.sky_color / max(luminance(frame.sky_color), 1e-3);
+        let sky_level = clamp(luminance(frame.sky_color) * 1.25 + sky * 0.10, 0.0, 1.0);
+        let body = sky_hue * sky_level;
+        let deep = vec3<f32>(0.020, 0.105, 0.115);
+        var water_lit = body * transmission + deep * (vec3<f32>(1.0) - transmission);
 
         // Fresnel at water's index: about 2% facing the surface, near total at a grazing angle, which
         // is what makes water read as water instead of a bright mirror. The engine exposes no scene
@@ -113,5 +118,12 @@ fn material(input: MaterialInput) -> Surface {
         lit = mix(lit, warm, haze);
     }
 
-    return Surface(vec4<f32>(max(lit, vec3<f32>(0.0)), input.albedo.a * input.tint.a));
+    // Clean water is a shallow pane, not vanilla's nearly opaque texture: give it a lighter alpha
+    // while the waves are on, and vanilla's own alpha otherwise.
+    var alpha = input.albedo.a * input.tint.a;
+    if water && is_water {
+        let near = 1.0 - smoothstep(28.0, 64.0, length(input.position));
+        alpha = mix(alpha, 0.60, near);
+    }
+    return Surface(vec4<f32>(max(lit, vec3<f32>(0.0)), alpha));
 }

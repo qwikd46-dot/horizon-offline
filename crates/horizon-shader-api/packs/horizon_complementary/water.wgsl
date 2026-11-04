@@ -15,12 +15,12 @@
 // a stage pays only for what it calls.
 
 override water: bool = true;
-override water_waves: f32 = 0.5;
+override water_waves: f32 = 0.65;
 override water_specular: f32 = 0.6;
 override water_reflect: f32 = 0.5;
 override water_caustics: f32 = 0.5;
 override water_ripples: f32 = 0.6;
-override water_clarity: f32 = 0.75;
+override water_clarity: f32 = 1.1;
 
 const GW_TAU: f32 = 6.28318530717958647692;
 const GW_GRAVITY: f32 = 9.81;
