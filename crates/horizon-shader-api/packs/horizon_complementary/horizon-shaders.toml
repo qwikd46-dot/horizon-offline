@@ -1,9 +1,9 @@
 schema = 1
 id = "horizon_complementary"
 name = "Horizon Complementary"
-version = "2.4.0"
+version = "2.5.0"
 api = "0.1"
-description = "Complementary Reimagined's sky, light, ambient and tonemap with a crystal-clear Glistening Water surface, ported to Horizon's WGSL stages: its noon, sunset and night skies, its sun and moon light, a Lottes tonemap applied once in linear light, a clean travelling-wave water surface with the sun glisten, screen-space shadows and bloom."
+description = "Complementary-inspired sky, lighting and tonemapping with naturally blue water, gently travelling waves, screen-space shadows and bloom."
 authors = ["Horizon", "qwikd46-dot"]
 license = "MIT"
 shared = ["common.wgsl", "water.wgsl"]
@@ -178,26 +178,26 @@ step = 0.01
 [[options]]
 id = "water"
 name = "Water effects"
-description = "Waves, the sun or moon highlight, caustics, the sky reflection and player or mob ripples on water."
+description = "Travelling surface waves, sun and moon highlights, and a soft sky reflection on water."
 type = "bool"
 default = true
 
 [[options]]
 id = "water_waves"
 name = "Water waves"
-description = "How strong the moving water surface is. Waves fade out with distance, so far water stays calm."
+description = "How much the animated wave pattern tilts and brightens the surface. Waves fade out with distance."
 type = "float"
-default = 0.65
+default = 0.8
 min = 0.0
 max = 1.0
 step = 0.02
 
 [[options]]
 id = "water_specular"
-name = "Water sun and moon glint"
-description = "How bright the sun's or moon's highlight is on water. Lower is calmer; the highlight also fades out with distance."
+name = "Water highlights"
+description = "How bright the sun and moon reflections are. Lower is calmer; highlights fade out with distance."
 type = "float"
-default = 0.6
+default = 0.4
 min = 0.0
 max = 2.0
 step = 0.05
@@ -205,37 +205,17 @@ step = 0.05
 [[options]]
 id = "water_reflect"
 name = "Water reflection"
-description = "How much of the sky the water reflects at grazing angles."
+description = "How much of the sky the water reflects at grazing angles. Water reflects little when viewed from above."
 type = "float"
-default = 0.5
+default = 0.3
 min = 0.0
 max = 1.0
-step = 0.02
-
-[[options]]
-id = "water_caustics"
-name = "Water caustics"
-description = "The sun's bright web shimmering on the water in daylight, up close only."
-type = "float"
-default = 0.5
-min = 0.0
-max = 1.0
-step = 0.02
-
-[[options]]
-id = "water_ripples"
-name = "Water ripples"
-description = "How strongly rain pricks the surface and a swimmer leaves rings behind. 0 turns them off."
-type = "float"
-default = 0.6
-min = 0.0
-max = 1.5
 step = 0.02
 
 [[options]]
 id = "water_clarity"
 name = "Water clarity"
-description = "How clear the water reads. High is a clean, transparent surface that shows the scene through it; low is a deeper teal with more of the water's own colour."
+description = "How clearly the world shows through. Higher clarity reduces the water's blue absorption tint."
 type = "float"
 default = 1.1
 min = 0.1
